@@ -5,6 +5,27 @@ const { spawn } = require('child_process');
 
 let mainWindow;
 const runningBotProcesses = new Map();
+const botLogsHistory = new Map(); // dir -> Array<{ projectDir, projectName, message, type, time }>
+
+function appendBotLog(dir, name, message, type = 'stdout') {
+    if (!botLogsHistory.has(dir)) {
+        botLogsHistory.set(dir, []);
+    }
+    const list = botLogsHistory.get(dir);
+    const entry = {
+        projectDir: dir,
+        projectName: name,
+        message: String(message),
+        type: type,
+        time: Date.now()
+    };
+    list.push(entry);
+    if (list.length > 1000) list.shift();
+
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('bot-log', entry);
+    }
+}
 
 const APP_DIR = __dirname;
 // Dynamiczny katalog domowy użytkownika (np. /home/nazwa_uzytkownika/Dokumenty/Pitaya-Boty)
@@ -1294,6 +1315,14 @@ ipcMain.handle('get-running-bots', () => {
     return getRunningBotsList();
 });
 
+ipcMain.handle('get-bot-logs', (event, projNameOrPath) => {
+    const targetProj = projNameOrPath || currentProject;
+    if (!targetProj) return [];
+    const paths = getProjectPaths(targetProj);
+    if (!paths) return [];
+    return botLogsHistory.get(paths.dir) || [];
+});
+
 ipcMain.handle('start-bot', (event, arg) => {
     let targetProj = currentProject;
     let explicitToken = '';
@@ -1310,8 +1339,13 @@ ipcMain.handle('start-bot', (event, arg) => {
     if (!paths) return { ok: false, error: 'Nie znaleziono ścieżek projektu: ' + targetProj };
 
     if (runningBotProcesses.has(paths.dir)) {
-        return { ok: false, status: 'already_running', project: paths.name, dir: paths.dir, runningList: getRunningBotsList() };
+        appendBotLog(paths.dir, paths.name, 'ℹ️ Bot jest już uruchomiony w tle.', 'info');
+        return { ok: true, status: 'already_running', project: paths.name, dir: paths.dir, runningList: getRunningBotsList() };
     }
+
+    // Wyczyszczenie poprzednich logów dla nowego uruchomienia
+    botLogsHistory.set(paths.dir, []);
+    appendBotLog(paths.dir, paths.name, '🚀 Uruchamianie bota "' + paths.name + '"...', 'info');
 
     // Generuj aktualny bot.js (oryginalny runtime DBB zostaje nietknięty)
     try {
@@ -1330,7 +1364,9 @@ ipcMain.handle('start-bot', (event, arg) => {
 
     // Sprawdź czy token jest dostępny
     if (!effectiveToken) {
-        return { ok: false, error: 'Brak tokenu Discord dla bota "' + paths.name + '". Wpisz token w polu na górze lub w pliku .env', needToken: true, project: paths.name, dir: paths.dir };
+        const noTokMsg = '❌ Brak tokenu Discord dla bota "' + paths.name + '". Wpisz token w polu na górze lub w pliku .env';
+        appendBotLog(paths.dir, paths.name, noTokMsg, 'error');
+        return { ok: false, error: noTokMsg, needToken: true, project: paths.name, dir: paths.dir };
     }
 
     const nmPaths = getNodeModulesPaths(paths.dir);
@@ -1355,10 +1391,8 @@ ipcMain.handle('start-bot', (event, arg) => {
     const cwd = paths.dir;
 
     const diag = diagnoseProject(paths.dir);
-    if (mainWindow && diag.length) {
-        diag.forEach(msg => mainWindow.webContents.send('bot-log', {
-            projectDir: paths.dir, projectName: paths.name, message: msg, type: 'stderr'
-        }));
+    if (diag.length) {
+        diag.forEach(msg => appendBotLog(paths.dir, paths.name, msg, 'stderr'));
     }
 
     // --unhandled-rejections=warn: jeden błąd w bloku (np. pusta wiadomość) nie zabija całego bota
@@ -1375,31 +1409,18 @@ ipcMain.handle('start-bot', (event, arg) => {
     child.stdout.on('data', (data) => {
         const text = data.toString();
         process.stdout.write(`[BOT:${paths.name}] ${text}`);
-        if (mainWindow) {
-            mainWindow.webContents.send('bot-log', {
-                projectDir: paths.dir,
-                projectName: paths.name,
-                message: text,
-                type: 'stdout'
-            });
-        }
+        appendBotLog(paths.dir, paths.name, text, 'stdout');
     });
 
     child.stderr.on('data', (data) => {
         const text = data.toString();
         process.stderr.write(`[BOT:${paths.name} ERROR] ${text}`);
-        if (mainWindow) {
-            mainWindow.webContents.send('bot-log', {
-                projectDir: paths.dir,
-                projectName: paths.name,
-                message: text,
-                type: 'stderr'
-            });
-        }
+        appendBotLog(paths.dir, paths.name, text, 'stderr');
     });
 
     child.on('close', (code) => {
         runningBotProcesses.delete(paths.dir);
+        appendBotLog(paths.dir, paths.name, `[BOT] Proces bota zakończony (kod wyjścia: ${code})`, code === 0 ? 'info' : 'error');
         if (mainWindow) {
             mainWindow.webContents.send('bot-status-change', {
                 projectDir: paths.dir,
@@ -1435,6 +1456,7 @@ ipcMain.handle('stop-bot', (event, projNameOrPath) => {
     if (entry && entry.process) {
         entry.process.kill();
         runningBotProcesses.delete(paths.dir);
+        appendBotLog(paths.dir, paths.name, '[PBB] Bot zatrzymany ręcznie.', 'info');
         if (mainWindow) {
             mainWindow.webContents.send('bot-status-change', {
                 projectDir: paths.dir,

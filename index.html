@@ -4619,6 +4619,32 @@
             });
         }
 
+        // ═══════ IPC EVENT LISTENERS ═══════
+        ipcRenderer.on('bot-log', (event, data) => {
+            if (data && data.projectDir && currentProjectDir && data.projectDir !== currentProjectDir) {
+                return;
+            }
+            renderLogEntry(data);
+        });
+
+        ipcRenderer.on('win-maximized', (event, maximized) => {
+            document.body.classList.toggle('win-maximized', Boolean(maximized));
+            const b = document.getElementById('winMaxBtn');
+            if (b) b.title = maximized ? 'Restore' : 'Maximize';
+        });
+
+        ipcRenderer.on('bot-status-change', (event, data) => {
+            loadRunningBotsList();
+            renderDockProjects();
+            if (data && data.projectDir && data.projectDir !== currentProjectDir) return;
+            if (data && typeof data.running === 'boolean') {
+                updateBotStatus(data.running);
+                if (!data.running && data.code !== undefined && data.code !== null) {
+                    addConsoleLine(`[BOT] Proces zakończony (kod wyjścia: ${data.code})`, data.code === 0 ? 'info' : 'error');
+                }
+            }
+        });
+
         // ═══════ INIT ═══════
         async function init() {
             installedBlocks = await ipcRenderer.invoke('get-installed-blocks');
@@ -4629,39 +4655,43 @@
             window.addEventListener('resize', drawGrid);
             switchView('home');
 
-            ipcRenderer.on('bot-log', (event, data) => {
-                const raw = (typeof data === 'object' && data !== null) ? (data.message || JSON.stringify(data)) : data;
-                const type = (typeof data === 'object' && data !== null && data.type === 'stderr') ? 'error' : '';
-                const clean = String(raw).replace(/\u001b\[[0-9;?]*[a-zA-Z]/g, '').replace(/\r/g, '');
-                const lines = clean.split('\n');
-                for (const line of lines) {
-                    if (line.trim().length > 0) {
-                        addConsoleLine(line, type);
-                    }
-                }
-            });
             try {
                 const ver = require('./package.json').version;
                 const chip = document.getElementById('homeVersionChip');
                 if (chip && ver) chip.textContent = 'v' + ver;
             } catch (e) {}
-            ipcRenderer.on('win-maximized', (event, maximized) => {
-                document.body.classList.toggle('win-maximized', Boolean(maximized));
-                const b = document.getElementById('winMaxBtn');
-                if (b) b.title = maximized ? 'Restore' : 'Maximize';
-            });
-            ipcRenderer.on('bot-status-change', (event, data) => {
-                loadRunningBotsList();
-                renderDockProjects();
-                if (data && data.projectDir && data.projectDir !== currentProjectDir) return;
-                if (data && typeof data.running === 'boolean') {
-                    updateBotStatus(data.running);
-                    if (!data.running && data.code !== undefined && data.code !== null) {
-                        addConsoleLine(`[BOT] Proces zakończony (kod wyjścia: ${data.code})`, data.code === 0 ? 'info' : 'error');
+            loadRunningBotsList();
+        }
+
+        function renderLogEntry(data) {
+            const raw = (typeof data === 'object' && data !== null) ? (data.message || JSON.stringify(data)) : data;
+            const type = (typeof data === 'object' && data !== null && data.type) ? data.type : '';
+            const timestamp = (typeof data === 'object' && data !== null && data.time) ? new Date(data.time).toLocaleTimeString('pl-PL') : null;
+            const clean = String(raw).replace(/\u001b\[[0-9;?]*[a-zA-Z]/g, '').replace(/\r/g, '');
+            const lines = clean.split('\n');
+            for (const line of lines) {
+                if (line.trim().length > 0) {
+                    addConsoleLine(line, type, timestamp);
+                }
+            }
+        }
+
+        async function loadBotLogs(projDir) {
+            const target = projDir || currentProjectDir;
+            if (!target) return;
+            try {
+                const logs = await ipcRenderer.invoke('get-bot-logs', target);
+                const output = document.getElementById('consoleOutput');
+                if (!output) return;
+                output.innerHTML = '';
+                if (Array.isArray(logs) && logs.length > 0) {
+                    for (const entry of logs) {
+                        renderLogEntry(entry);
                     }
                 }
-            });
-            loadRunningBotsList();
+            } catch (e) {
+                console.error('[PBB ERROR loading logs]:', e);
+            }
         }
 
         // ═══════ TOAST NOTIFICATIONS ═══════
@@ -4686,6 +4716,7 @@
             panel.classList.toggle('open', consoleOpen);
             if (consoleOpen) {
                 if (panel.dataset.userHeight) panel.style.height = panel.dataset.userHeight;
+                loadBotLogs(currentProjectDir);
             } else {
                 if (panel.style.height) panel.dataset.userHeight = panel.style.height;
                 panel.style.height = '';
@@ -4693,12 +4724,12 @@
             setTimeout(() => { resizeCanvasGrid(); drawWires(); }, 360);
         }
 
-        function addConsoleLine(text, type = '') {
+        function addConsoleLine(text, type = '', customTime = null) {
             const output = document.getElementById('consoleOutput');
             if (!output) return;
             const line = document.createElement('div');
             line.className = `console-line ${type}`;
-            const time = new Date().toLocaleTimeString('pl-PL');
+            const time = customTime || new Date().toLocaleTimeString('pl-PL');
             let content = text;
             if (typeof content === 'object' && content !== null) {
                 content = content.message || JSON.stringify(content);
@@ -4746,13 +4777,16 @@
             const token = document.getElementById('botToken').value.trim();
 
             if (!isBotRunning) {
+                clearConsole();
+                if (!consoleOpen) toggleConsole(true);
+                addConsoleLine('🚀 Zapisywanie i przygotowywanie bota...', 'info');
                 await ipcRenderer.invoke('save-workspaces', rawWorkspacesData);
                 await ipcRenderer.invoke('generate-bot', token);
                 const res = await ipcRenderer.invoke('start-bot', token);
                 if (res.ok || res.status === 'started' || res.status === 'already_running') {
                     updateBotStatus(true);
-                    if (!consoleOpen) toggleConsole();
                     showToast('Bot uruchomiony!', 'success');
+                    await loadBotLogs(currentProjectDir);
                 } else {
                     if (res.needToken) {
                         showToast(res.error || 'Wpisz token bota!', 'warning');
@@ -4760,9 +4794,9 @@
                         showToast(`Błąd uruchamiania: ${res.error || 'Nieznany błąd'}`, 'error');
                     }
                     addConsoleLine(`❌ ${res.error || 'Nie udało się uruchomić bota'}`, 'error');
-                    if (!consoleOpen) toggleConsole();
                 }
             } else {
+                addConsoleLine('🛑 Zatrzymywanie bota...', 'info');
                 await ipcRenderer.invoke('stop-bot');
                 updateBotStatus(false);
                 showToast('Bot zatrzymany', 'info');
@@ -8325,6 +8359,12 @@
                 findAndActivateDefaultWorkspace();
                 switchView('editor');
                 loadRunningBotsList();
+                try {
+                    const runningBots = await ipcRenderer.invoke('get-running-bots');
+                    const isThisRunning = Array.isArray(runningBots) && runningBots.some(b => b.dir === res.path);
+                    updateBotStatus(isThisRunning);
+                    await loadBotLogs(res.path);
+                } catch(e) {}
             } else {
                 showToast(`Błąd otwierania projektu: ${res.error}`, 'error');
             }
