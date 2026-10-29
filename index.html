@@ -1632,6 +1632,17 @@
             font-size: 11px;
             line-height: 1.6;
             color: var(--text-secondary);
+            user-select: text !important;
+            -webkit-user-select: text !important;
+            cursor: text;
+        }
+        .console-output *, .console-line {
+            user-select: text !important;
+            -webkit-user-select: text !important;
+        }
+        .console-output::selection, .console-output *::selection {
+            background: rgba(255, 79, 166, 0.45) !important;
+            color: #ffffff !important;
         }
 
         .console-line { margin-bottom: 2px; }
@@ -3823,6 +3834,7 @@
             </div>
             <div class="console-tabs" id="consoleTabs"></div>
             <div style="display:flex; gap: 6px; align-items:center;">
+                <button class="btn-icon" onclick="copyConsoleLogs()" title="Kopiuj logi konsoli"><svg class="ico"><use href="#i-copy"/></svg></button>
                 <button class="btn-icon" onclick="clearConsole()" title="Wyczyść konsolę">🗑</button>
                 <button class="btn-icon" onclick="toggleConsole(false)" title="Zamknij konsolę (F12)">✕</button>
             </div>
@@ -4690,6 +4702,28 @@
             output.scrollTop = output.scrollHeight;
         }
 
+        async function copyConsoleLogs() {
+            const out = document.getElementById('consoleOutput');
+            if (!out) return;
+            const text = out.innerText || out.textContent || '';
+            if (!text.trim()) {
+                showToast('Konsola jest pusta', 'info');
+                return;
+            }
+            try {
+                await navigator.clipboard.writeText(text);
+                showToast('Skopiowano zawartość konsoli!', 'success');
+            } catch (err) {
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                showToast('Skopiowano zawartość konsoli!', 'success');
+            }
+        }
+
         function clearConsole() {
             document.getElementById('consoleOutput').innerHTML = '';
         }
@@ -4750,20 +4784,36 @@
         function drawGrid() {
             const canvas = document.getElementById('canvasGrid');
             const area = document.getElementById('canvasArea');
+            if (!canvas || !area) return;
             const ctx = canvas.getContext('2d');
             const dpr = window.devicePixelRatio || 1;
 
-            canvas.width = area.offsetWidth * dpr;
-            canvas.height = area.offsetHeight * dpr;
-            canvas.style.width = area.offsetWidth + 'px';
-            canvas.style.height = area.offsetHeight + 'px';
+            const w = area.offsetWidth;
+            const h = area.offsetHeight;
+
+            canvas.width = w * dpr;
+            canvas.height = h * dpr;
+            canvas.style.width = w + 'px';
+            canvas.style.height = h + 'px';
             ctx.scale(dpr, dpr);
 
-            const gridSize = 24 * zoomScale;
-            const offsetX = panX % gridSize;
-            const offsetY = panY % gridSize;
+            ctx.clearRect(0, 0, w, h);
 
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            // ─── Tło obszaru poza planszą roboczą (x < 0 oraz y < 0) wyróżnione na szaro ───
+            const originX = panX;
+            const originY = panY;
+
+            // Szary kolor dla obszaru poza przestrzenią roboczą
+            ctx.fillStyle = '#1c1b22';
+
+            if (originX > 0) {
+                // Pas po lewej stronie od x=0
+                ctx.fillRect(0, 0, originX, h);
+            }
+            if (originY > 0) {
+                // Pas powyżej y=0
+                ctx.fillRect(Math.max(0, originX), 0, w - Math.max(0, originX), originY);
+            }
 
             // Small dots
             ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
@@ -4786,6 +4836,24 @@
                     ctx.arc(x, y, 1.5, 0, Math.PI * 2);
                     ctx.fill();
                 }
+            }
+
+            // ─── Wyraźne linie podziału krawędzi obszaru roboczego (X=0 i Y=0) ───
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+            ctx.lineWidth = 1.5;
+
+            if (originX >= 0 && originX <= w) {
+                ctx.beginPath();
+                ctx.moveTo(originX, 0);
+                ctx.lineTo(originX, h);
+                ctx.stroke();
+            }
+
+            if (originY >= 0 && originY <= h) {
+                ctx.beginPath();
+                ctx.moveTo(Math.max(0, originX), originY);
+                ctx.lineTo(w, originY);
+                ctx.stroke();
             }
         }
 
