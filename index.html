@@ -4630,9 +4630,15 @@
             switchView('home');
 
             ipcRenderer.on('bot-log', (event, data) => {
-                const msg = (typeof data === 'object' && data !== null) ? (data.message || JSON.stringify(data)) : data;
+                const raw = (typeof data === 'object' && data !== null) ? (data.message || JSON.stringify(data)) : data;
                 const type = (typeof data === 'object' && data !== null && data.type === 'stderr') ? 'error' : '';
-                addConsoleLine(msg, type);
+                const clean = String(raw).replace(/\u001b\[[0-9;?]*[a-zA-Z]/g, '').replace(/\r/g, '');
+                const lines = clean.split('\n');
+                for (const line of lines) {
+                    if (line.trim().length > 0) {
+                        addConsoleLine(line, type);
+                    }
+                }
             });
             try {
                 const ver = require('./package.json').version;
@@ -4697,7 +4703,8 @@
             if (typeof content === 'object' && content !== null) {
                 content = content.message || JSON.stringify(content);
             }
-            line.innerHTML = `<span style="color:var(--text-muted)">[${time}]</span> ${escapeHTML(String(content))}`;
+            content = String(content).replace(/\u001b\[[0-9;?]*[a-zA-Z]/g, '').replace(/\r/g, '');
+            line.innerHTML = `<span style="color:var(--text-muted)">[${time}]</span> ${escapeHTML(content)}`;
             output.appendChild(line);
             output.scrollTop = output.scrollHeight;
         }

@@ -1,6 +1,6 @@
 {
   "name": "pitaya-bot-builder",
-  "version": "0.1.4-beta",
+  "version": "0.1.5-beta",
   "description": "Pitaya Bot Builder — wizualny kreator botów Discord dla Linuxa",
   "main": "main.js",
   "scripts": {
