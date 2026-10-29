@@ -2884,7 +2884,50 @@
         .zoom-btn { border-radius: 8px !important; color: var(--m-text-2) !important; }
         .zoom-btn:hover { background: var(--m-item-hover) !important; color: var(--m-text) !important; }
 
-        .wire-path { stroke-width: 2.4 !important; opacity: 0.9 !important; stroke-linecap: round; }
+        
+        .wire-path { stroke-width: 2.5 !important; opacity: 0.9 !important; stroke-linecap: round; cursor: pointer; transition: stroke-width 100ms ease; }
+        .wire-path:hover { stroke-width: 4.5 !important; opacity: 1 !important; filter: drop-shadow(0 0 5px currentColor) !important; }
+
+        .port-item {
+            transition: background 120ms ease, opacity 120ms ease, transform 120ms ease;
+        }
+        .port-item.compatible-target {
+            background: rgba(255, 79, 166, 0.14) !important;
+            border-radius: 4px;
+            box-shadow: inset 0 0 0 1px rgba(255, 79, 166, 0.5);
+        }
+        .port-item.compatible-target.is-data {
+            background: rgba(0, 184, 148, 0.14) !important;
+            box-shadow: inset 0 0 0 1px rgba(0, 184, 148, 0.5);
+        }
+        .port-item.wire-target-hover {
+            background: rgba(255, 79, 166, 0.3) !important;
+            box-shadow: inset 0 0 0 1.5px #ff4fa6, 0 0 8px rgba(255, 79, 166, 0.4) !important;
+            transform: scale(1.03);
+        }
+        .port-item.connecting-source {
+            background: rgba(255, 79, 166, 0.25) !important;
+            box-shadow: inset 0 0 0 1.5px #ff4fa6 !important;
+        }
+        body.is-wiring .port-item:not(.compatible-target):not(.connecting-source) {
+            opacity: 0.4;
+        }
+
+        .quick-connect-popup {
+            position: fixed;
+            z-index: 10000;
+            background: #18161f;
+            border: 1px solid rgba(255, 79, 166, 0.35);
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+            width: 280px;
+            max-height: 380px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            font-family: inherit;
+        }
+
         .wire-path:hover { stroke-width: 4 !important; opacity: 1 !important; filter: drop-shadow(0 0 4px currentColor) !important; }
 
         /* ───── Obszary (notatki) ───── */
@@ -3245,6 +3288,8 @@
         <symbol id="i-chevron" viewBox="0 0 24 24"><path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></symbol>
         <symbol id="i-plus" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></symbol>
         <symbol id="i-menu" viewBox="0 0 24 24"><path d="M3 18h13v-2H3v2zm0-5h10v-2H3v2zm0-7v2h13V6H3zm18 9.59L17.42 12 21 8.41 19.59 7l-5 5 5 5L21 15.59z"/></symbol>
+                <symbol id="i-undo" viewBox="0 0 24 24"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></symbol>
+        <symbol id="i-redo" viewBox="0 0 24 24"><path d="M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16c1.05-3.19 4.05-5.5 7.6-5.5 1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z"/></symbol>
         <symbol id="i-save" viewBox="0 0 24 24"><path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></symbol>
         <symbol id="i-code" viewBox="0 0 24 24"><path d="M9.4 16.6 4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0 4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/></symbol>
         <symbol id="i-left" viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></symbol>
@@ -3449,8 +3494,11 @@
                         <div class="dbb-ws-topbar-spacer"></div>
                         <input type="password" id="botToken" hidden>
                         <div class="dbb-tool-group">
+                            <button class="dbb-icon-btn big" id="btnUndo" onclick="undo()" title="Cofnij (Ctrl+Z)"><svg class="ico "><use href="#i-undo"/></svg></button>
+                            <button class="dbb-icon-btn big" id="btnRedo" onclick="redo()" title="Ponów (Ctrl+Y)"><svg class="ico "><use href="#i-redo"/></svg></button>
+                            <button class="dbb-icon-btn big" onclick="autoArrangeBlocks()" title="Uporządkuj bloki (Auto-układ)"><svg class="ico "><use href="#i-spark"/></svg></button>
                             <button class="dbb-icon-btn big" onclick="saveToDisk()" title="Zapisz (Ctrl+S)"><svg class="ico "><use href="#i-save"/></svg></button>
-                            <button class="dbb-icon-btn big" onclick="openBlocksMenu()" title="Dodaj blok"><svg class="ico "><use href="#i-shapes"/></svg></button>
+                            <button class="dbb-icon-btn big" onclick="openBlocksMenu()" title="Dodaj blok (Spacja)"><svg class="ico "><use href="#i-shapes"/></svg></button>
                             <button class="dbb-icon-btn big" onclick="openWorkspaceCodeModal()" title="Kod workspace'a (JSON)"><svg class="ico "><use href="#i-code"/></svg></button>
                             <button class="dbb-icon-btn big" onclick="toggleConsole()" title="Konsola (F12)"><svg class="ico "><use href="#i-terminal"/></svg></button>
                         </div>
@@ -3553,12 +3601,14 @@
                 <button class="dbb-modal-close" onclick="closeModal('modalHelp')">✕</button>
             </div>
             <div class="dbb-modal-body" style="font-size:13px; line-height:1.7; color:var(--text-secondary);">
-                <div class="info-tip"><b>⇢</b><span>Prawy przycisk na planszy otwiera listę bloków z wyszukiwarką.</span></div>
-                <div class="info-tip"><b>⌁</b><span>Połączenie: przeciągnij z wyjścia do wejścia. Kliknij kabel, aby go usunąć.</span></div>
-                <div class="info-tip"><b>F5</b><span>Uruchom / zatrzymaj bota aktualnego projektu.</span></div>
-                <div class="info-tip"><b>⌘S</b><span>Ctrl+S zapisuje workspace'y projektu.</span></div>
-                <div class="info-tip"><b>F12</b><span>Pokazuje lub chowa konsolę z logami bota.</span></div>
-                <div class="info-tip"><b>Del</b><span>Usuwa zaznaczony blok.</span></div>
+                <div class="info-tip"><b>↶ ↷</b><span><b>Ctrl+Z / Ctrl+Y</b> – Cofnij / Ponów dowolną akcję (ruch, połączenie, usunięcie).</span></div>
+                <div class="info-tip"><b>⌘D</b><span><b>Ctrl+D</b> – Duplikuj zaznaczony blok z zachowaniem ustawień.</span></div>
+                <div class="info-tip"><b>Spacja</b><span><b>Spacja</b> lub podwójne kliknięcie na planszy – Szybkie wyszukiwanie i dodawanie bloku.</span></div>
+                <div class="info-tip"><b>⌁</b><span><b>Łączenie:</b> przeciągaj z wyjścia lub wejścia (w obie strony!). Puść kabel na pustej planszy, aby szybko dodać i podłączyć nowy blok.</span></div>
+                <div class="info-tip"><b>Prawy klik</b><span>Prawy klik na port odłącza kable. Prawy klik na planszę otwiera menu bloków.</span></div>
+                <div class="info-tip"><b>🪄</b><span>Przycisk <b>Uporządkuj</b> – Automatycznie układa bloki od lewej do prawej według przepływu.</span></div>
+                <div class="info-tip"><b>F5 / F12</b><span>F5 uruchamia bota, F12 otwiera konsolę, Ctrl+S zapisuje projekt.</span></div>
+                <div class="info-tip"><b>Del / Backspace</b><span>Usuwa zaznaczony blok.</span></div>
             </div>
             <div class="dbb-modal-footer">
                 <button class="btn-modal-confirm" onclick="closeModal('modalHelp')">Rozumiem</button>
@@ -3789,6 +3839,15 @@
         <div class="context-list" id="ctxList"></div>
     </div>
 
+    <!-- QUICK CONNECT POPUP -->
+    <div class="context-menu quick-connect-popup" id="quickConnectPopup" style="display:none;">
+        <div class="context-header" id="quickConnectHeader">Połącz z nowym blokiem</div>
+        <div class="context-search">
+            <input type="text" id="quickConnectSearch" placeholder="🔍 Szukaj bloku do połączenia..." oninput="filterQuickConnect()">
+        </div>
+        <div class="context-list" id="quickConnectList"></div>
+    </div>
+
     <script>
         const { ipcRenderer } = require('electron');
 
@@ -3819,6 +3878,116 @@
 
         let connectingWire = null;
         let ctxMenuPos = { x: 0, y: 0 };
+
+        // ═══════ HISTORIA / COFNIJ / PONÓW (UNDO / REDO) ═══════
+        let undoStack = [];
+        let redoStack = [];
+        const MAX_UNDO = 50;
+        let isApplyingHistory = false;
+
+        function initWorkspaceHistory() {
+            undoStack = [];
+            redoStack = [];
+            if (currentWorkspace && currentWorkspace.blocks) {
+                undoStack.push({
+                    name: 'Otwarcie workspace',
+                    blocks: JSON.parse(JSON.stringify(currentWorkspace.blocks)),
+                    notes: JSON.parse(JSON.stringify(currentWorkspace.notes || []))
+                });
+            }
+            updateUndoRedoUI();
+        }
+
+        function recordHistory(actionName = 'Zdarzenie') {
+            if (isApplyingHistory || !currentWorkspace) return;
+            const snapBlocks = JSON.parse(JSON.stringify(currentWorkspace.blocks || []));
+            const snapNotes = JSON.parse(JSON.stringify(currentWorkspace.notes || []));
+
+            if (undoStack.length > 0) {
+                const last = undoStack[undoStack.length - 1];
+                if (JSON.stringify(last.blocks) === JSON.stringify(snapBlocks) &&
+                    JSON.stringify(last.notes) === JSON.stringify(snapNotes)) {
+                    return;
+                }
+            }
+
+            undoStack.push({ name: actionName, blocks: snapBlocks, notes: snapNotes });
+            if (undoStack.length > MAX_UNDO) undoStack.shift();
+            redoStack = [];
+            updateUndoRedoUI();
+            debouncedSaveToDisk();
+        }
+
+        function undo() {
+            if (undoStack.length <= 1 || !currentWorkspace) {
+                showToast('Brak akcji do cofnięcia', 'info');
+                return;
+            }
+            isApplyingHistory = true;
+            const current = undoStack.pop();
+            redoStack.push(current);
+            const target = undoStack[undoStack.length - 1];
+            currentWorkspace.blocks = JSON.parse(JSON.stringify(target.blocks));
+            currentWorkspace.notes = JSON.parse(JSON.stringify(target.notes || []));
+            renderCanvas();
+            updateUndoRedoUI();
+            debouncedSaveToDisk();
+            showToast(`Cofnięto: ${current.name}`, 'info');
+            isApplyingHistory = false;
+        }
+
+        function redo() {
+            if (redoStack.length === 0 || !currentWorkspace) {
+                showToast('Brak akcji do ponowienia', 'info');
+                return;
+            }
+            isApplyingHistory = true;
+            const target = redoStack.pop();
+            undoStack.push(target);
+            currentWorkspace.blocks = JSON.parse(JSON.stringify(target.blocks));
+            currentWorkspace.notes = JSON.parse(JSON.stringify(target.notes || []));
+            renderCanvas();
+            updateUndoRedoUI();
+            debouncedSaveToDisk();
+            showToast(`Ponowiono: ${target.name}`, 'info');
+            isApplyingHistory = false;
+        }
+
+        function updateUndoRedoUI() {
+            const btnUndo = document.getElementById('btnUndo');
+            const btnRedo = document.getElementById('btnRedo');
+            if (btnUndo) {
+                const canUndo = undoStack.length > 1;
+                btnUndo.disabled = !canUndo;
+                btnUndo.style.opacity = canUndo ? '1' : '0.35';
+                btnUndo.style.pointerEvents = canUndo ? 'auto' : 'none';
+            }
+            if (btnRedo) {
+                const canRedo = redoStack.length > 0;
+                btnRedo.disabled = !canRedo;
+                btnRedo.style.opacity = canRedo ? '1' : '0.35';
+                btnRedo.style.pointerEvents = canRedo ? 'auto' : 'none';
+            }
+        }
+
+        let autoSaveTimer = null;
+        function debouncedSaveToDisk() {
+            if (autoSaveTimer) clearTimeout(autoSaveTimer);
+            autoSaveTimer = setTimeout(() => {
+                saveToDisk(true);
+            }, 600);
+        }
+
+        async function saveToDisk(silent = false) {
+            const ok = await ipcRenderer.invoke('save-workspaces', rawWorkspacesData);
+            if (ok) {
+                if (!silent) {
+                    showToast('Zapisano pomyślnie do workspaces.json!', 'success');
+                }
+            } else {
+                showToast('Błąd zapisu workspaces.json!', 'error');
+            }
+        }
         let consoleOpen = false;
 
         // ═══════ CATEGORY HELPER ═══════
@@ -3854,7 +4023,33 @@
             return colors[slug] || '#6c5ce7';
         }
 
-        // Pomocnik do dynamicznych definicji bloków
+                const blockDefCache = new Map();
+        const blockModuleCache = new Map();
+
+        function getBlockModule(blockName) {
+            if (blockModuleCache.has(blockName)) {
+                return blockModuleCache.get(blockName);
+            }
+            try {
+                const path = require('path');
+                const fs = require('fs');
+                const searchPaths = [];
+                if (currentProjectDir) searchPaths.push(path.join(currentProjectDir, 'blocks', `${blockName}.js`));
+                searchPaths.push(path.join(__dirname, 'blocks', `${blockName}.js`));
+                searchPaths.push(path.join(__dirname, '..', 'blocks', `${blockName}.js`));
+
+                const filePath = searchPaths.find(p => fs.existsSync(p));
+                if (filePath) {
+                    const mod = require(filePath);
+                    blockModuleCache.set(blockName, mod);
+                    return mod;
+                }
+            } catch (e) {}
+            blockModuleCache.set(blockName, null);
+            return null;
+        }
+
+        // Pomocnik do dynamicznych definicji bloków (z pamięcią podręczną)
         function getBlockFullDef(block) {
             const baseDef = installedBlocks.find(b => b.idName === block.name) || {
                 idName: block.name,
@@ -3864,43 +4059,44 @@
                 options: [],
                 outputs: []
             };
-            try {
-                const path = require('path');
-                const fs = require('fs');
-                // Sprawdź ścieżki: najpierw w bieżącym projekcie, potem w builderze
-                const searchPaths = [];
-                if (currentProjectDir) searchPaths.push(path.join(currentProjectDir, 'blocks', `${block.name}.js`));
-                searchPaths.push(path.join(__dirname, 'blocks', `${block.name}.js`));
-                searchPaths.push(path.join(__dirname, '..', 'blocks', `${block.name}.js`));
 
-                const filePath = searchPaths.find(p => fs.existsSync(p));
-                if (filePath) {
-                    delete require.cache[require.resolve(filePath)];
-                    const mod = require(filePath);
-                    const resolveProp = (p, data) => {
-                        if (Array.isArray(p)) return p;
-                        if (typeof p === 'function') {
-                            try {
-                                const res = p(data);
-                                return Array.isArray(res) ? res : [];
-                            } catch(err) {
-                                return [];
-                            }
+            const mod = getBlockModule(block.name);
+            if (!mod) return baseDef;
+
+            const isDynamic = typeof mod.inputs === 'function' || typeof mod.options === 'function' || typeof mod.outputs === 'function';
+            if (!isDynamic && blockDefCache.has(block.name)) {
+                return blockDefCache.get(block.name);
+            }
+
+            try {
+                const resolveProp = (p, data) => {
+                    if (Array.isArray(p)) return p;
+                    if (typeof p === 'function') {
+                        try {
+                            const res = p(data);
+                            return Array.isArray(res) ? res : [];
+                        } catch(err) {
+                            return [];
                         }
-                        return [];
-                    };
-                    const inps = resolveProp(mod.inputs, block);
-                    const opts = resolveProp(mod.options, block);
-                    const outs = resolveProp(mod.outputs, block);
-                    return {
-                        ...baseDef,
-                        inputs: (inps && inps.length > 0) ? inps : baseDef.inputs,
-                        options: (opts && opts.length > 0) ? opts : baseDef.options,
-                        outputs: (outs && outs.length > 0) ? outs : baseDef.outputs
-                    };
+                    }
+                    return [];
+                };
+                const inps = resolveProp(mod.inputs, block);
+                const opts = resolveProp(mod.options, block);
+                const outs = resolveProp(mod.outputs, block);
+                const fullDef = {
+                    ...baseDef,
+                    inputs: (inps && inps.length > 0) ? inps : baseDef.inputs,
+                    options: (opts && opts.length > 0) ? opts : baseDef.options,
+                    outputs: (outs && outs.length > 0) ? outs : baseDef.outputs
+                };
+                if (!isDynamic) {
+                    blockDefCache.set(block.name, fullDef);
                 }
-            } catch (e) {}
-            return baseDef;
+                return fullDef;
+            } catch (e) {
+                return baseDef;
+            }
         }
 
         // ═══════ PROJECTS MANAGEMENT ═══════
@@ -4326,6 +4522,8 @@
         }
 
         async function refreshBlocks() {
+            blockModuleCache.clear();
+            blockDefCache.clear();
             installedBlocks = await ipcRenderer.invoke('get-installed-blocks');
             renderCanvas();
             showToast(`Odświeżono bloki (${installedBlocks.length})`, 'success');
@@ -5269,6 +5467,7 @@
             currentWorkspace = ws;
             selectedNodeIdx = null;
             selectedNoteIdx = null;
+            initWorkspaceHistory();
 
             // Dodaj do listy otwartych kodów po boku
             if (!openWorkspaceIds.includes(ws.id)) {
@@ -5922,6 +6121,18 @@
                         portWrapper.addEventListener('mouseup', handleConnectFinish);
                         portWrapper.addEventListener('click', handleConnectFinish);
 
+                        // START ŁĄCZENIA OD WEJŚCIA (DWUKIERUNKOWE)
+                        const handleStartIn = (e) => {
+                            if (e.button !== 0) return;
+                            e.stopPropagation();
+                            if (connectingWire && connectingWire.type === 'input' && connectingWire.blockIdx === idx && connectingWire.portKey === key && connectingWire.inSubIdx === sub) {
+                                cancelConnectingWire();
+                                return;
+                            }
+                            startConnectingWireFromInput(idx, key, isAction, sub, portWrapper);
+                        };
+                        portWrapper.addEventListener('mousedown', handleStartIn);
+
                         portWrapper.addEventListener('mouseenter', () => {
                             if (connectingWire) portWrapper.classList.add('wire-target-hover');
                         });
@@ -5965,6 +6176,14 @@
                                     }
                                     startConnectingWire(idx, key, isAction, outSubIdx, subPortWrapper);
                                 };
+                                const handleConnectFinishOut = (e) => {
+                                    if (connectingWire && connectingWire.type === 'input') {
+                                        e.stopPropagation();
+                                        finishConnectingWire(idx, key, connectingWire.blockIdx, connectingWire.portKey, outSubIdx, connectingWire.inSubIdx);
+                                    }
+                                };
+                                subPortWrapper.addEventListener('mouseup', handleConnectFinishOut);
+                                subPortWrapper.addEventListener('click', handleConnectFinishOut);
                                 subPortWrapper.addEventListener('mousedown', handleStartOut);
                                 rightPorts.appendChild(subPortWrapper);
                             }
@@ -5990,6 +6209,14 @@
                                 }
                                 startConnectingWire(idx, key, isAction, 0, portWrapper);
                             };
+                            const handleConnectFinishOutSingle = (e) => {
+                                if (connectingWire && connectingWire.type === 'input') {
+                                    e.stopPropagation();
+                                    finishConnectingWire(idx, key, connectingWire.blockIdx, connectingWire.portKey, 0, connectingWire.inSubIdx);
+                                }
+                            };
+                            portWrapper.addEventListener('mouseup', handleConnectFinishOutSingle);
+                            portWrapper.addEventListener('click', handleConnectFinishOutSingle);
                             portWrapper.addEventListener('mousedown', handleStartOutSingle);
                             rightPorts.appendChild(portWrapper);
                         }
@@ -6231,6 +6458,12 @@
                 `;
             }
 
+            portWrapper.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                disconnectPortWires(blockIdx, isOutput, key, outSubIdx);
+            });
+
             return portWrapper;
         }
 
@@ -6238,9 +6471,33 @@
         // Oblicza pozycję kropki portu w wewnętrznym układzie współrzędnych canvasContent (niezależnie od zoomScale i stanu zwinięcia!)
         function getPortCenterInCanvas(portDotEl, isOutput = false, cardEl = null) {
             const canvasContent = document.getElementById('canvasContent');
-            const contentRect = canvasContent.getBoundingClientRect();
+            if (!canvasContent) return { x: 0, y: 0 };
+
+            if (cardEl && portDotEl) {
+                const bIdx = parseInt(cardEl.id.replace('block_', ''), 10);
+                const block = currentWorkspace?.blocks?.[bIdx];
+                if (block && portDotEl._relX !== undefined && portDotEl._relY !== undefined) {
+                    return {
+                        x: block.x + portDotEl._relX,
+                        y: block.y + portDotEl._relY
+                    };
+                }
+
+                const dotRect = portDotEl.getBoundingClientRect();
+                const cardRect = cardEl.getBoundingClientRect();
+                if (dotRect.width > 0 && cardRect.width > 0) {
+                    const relX = ((dotRect.left + dotRect.width / 2) - cardRect.left) / zoomScale;
+                    const relY = ((dotRect.top + dotRect.height / 2) - cardRect.top) / zoomScale;
+                    portDotEl._relX = relX;
+                    portDotEl._relY = relY;
+                    if (block) {
+                        return { x: block.x + relX, y: block.y + relY };
+                    }
+                }
+            }
 
             if (portDotEl) {
+                const contentRect = canvasContent.getBoundingClientRect();
                 const dotRect = portDotEl.getBoundingClientRect();
                 if (dotRect.width > 0 && dotRect.height > 0) {
                     return {
@@ -6250,26 +6507,15 @@
                 }
             }
 
-            // Fallback: jeśli blok jest zwinięty lub port ukryty, łączymy z kropkami nagłówka karty
             if (cardEl) {
-                if (cardEl.classList.contains('collapsed')) {
-                    const cDot = isOutput 
-                        ? cardEl.querySelector('.collapsed-ports .port-dot.action-out')
-                        : cardEl.querySelector('.collapsed-ports .port-dot.action');
-                    if (cDot) {
-                        const dRect = cDot.getBoundingClientRect();
-                        if (dRect.width > 0) {
-                            return {
-                                x: ((dRect.left + dRect.width / 2) - contentRect.left) / zoomScale,
-                                y: ((dRect.top + dRect.height / 2) - contentRect.top) / zoomScale
-                            };
-                        }
-                    }
-                }
-                const cRect = cardEl.getBoundingClientRect();
+                const bIdx = parseInt(cardEl.id.replace('block_', ''), 10);
+                const block = currentWorkspace?.blocks?.[bIdx];
+                const bx = block ? block.x : 0;
+                const by = block ? block.y : 0;
+                const bw = cardEl.offsetWidth || 300;
                 return {
-                    x: isOutput ? ((cRect.right - 14) - contentRect.left) / zoomScale : ((cRect.left + 14) - contentRect.left) / zoomScale,
-                    y: ((cRect.top + 20) - contentRect.top) / zoomScale
+                    x: isOutput ? (bx + bw - 14) : (bx + 14),
+                    y: by + 20
                 };
             }
             return { x: 0, y: 0 };
@@ -6286,9 +6532,7 @@
 
         function drawWires() {
             const svg = document.getElementById('wiresSvg');
-            svg.innerHTML = '';
-
-            if (!currentWorkspace || !currentWorkspace.blocks) return;
+            if (!svg || !currentWorkspace || !currentWorkspace.blocks) return;
 
             const outputIdMap = new Map();
             currentWorkspace.blocks.forEach((block, bIdx) => {
@@ -6310,6 +6554,8 @@
                 });
             });
 
+            const activeWireIds = new Set();
+
             currentWorkspace.blocks.forEach((targetBlock, targetIdx) => {
                 if (!targetBlock.inputs) return;
                 Object.entries(targetBlock.inputs).forEach(([inKey, inVal]) => {
@@ -6317,18 +6563,29 @@
                     idsToMatch.forEach((wireId, inSubIdx) => {
                         if (typeof wireId === 'string' && outputIdMap.has(wireId)) {
                             const source = outputIdMap.get(wireId);
-                            renderWire(source.bIdx, source.outKey, targetIdx, inKey, wireId, source.subIdx || 0, inSubIdx);
+                            renderOrUpdateWire(source.bIdx, source.outKey, targetIdx, inKey, wireId, source.subIdx || 0, inSubIdx);
+                            activeWireIds.add(wireId);
                         }
                     });
                 });
             });
 
+            const existingWirePaths = svg.querySelectorAll('.wire-path');
+            existingWirePaths.forEach(p => {
+                if (!activeWireIds.has(p.dataset.wireId)) {
+                    p.remove();
+                }
+            });
+
             if (connectingWire) {
                 renderTemporaryWire();
+            } else {
+                const temp = document.getElementById('tempConnectingWire');
+                if (temp) temp.style.display = 'none';
             }
         }
 
-        function renderWire(sourceIdx, outKey, targetIdx, inKey, wireId, outSubIdx = 0, inSubIdx = 0) {
+        function renderOrUpdateWire(sourceIdx, outKey, targetIdx, inKey, wireId, outSubIdx = 0, inSubIdx = 0) {
             const svg = document.getElementById('wiresSvg');
             const sourceCard = document.getElementById(`block_${sourceIdx}`);
             const targetCard = document.getElementById(`block_${targetIdx}`);
@@ -6347,18 +6604,57 @@
             const wireType = (srcWrap && srcWrap.dataset.portType) || 'unspecified';
             const color = `var(--port-${PORT_TYPE_COLORS[wireType] ? wireType : 'unspecified'})`;
 
-            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            let path = svg.querySelector(`[data-wire-id="${wireId}"]`);
+            if (!path) {
+                path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                path.classList.add('wire-path');
+                path.dataset.wireId = wireId;
+                path.title = 'Kliknij, aby usunąć kabel';
+                path.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    deleteWire(sourceIdx, outKey, targetIdx, inKey, wireId);
+                    recordHistory('Usunięto połączenie');
+                    showToast('Połączenie usunięte', 'info');
+                });
+                svg.appendChild(path);
+            }
+
+            path.dataset.sourceBlock = sourceIdx;
+            path.dataset.targetBlock = targetIdx;
+            path.dataset.outKey = outKey;
+            path.dataset.inKey = inKey;
+            path.dataset.outSubIdx = outSubIdx;
+            path.dataset.inSubIdx = inSubIdx;
+
             path.setAttribute('d', pathData);
             path.setAttribute('stroke', color);
-            path.classList.add('wire-path');
+        }
 
-            path.addEventListener('click', (e) => {
-                e.stopPropagation();
-                deleteWire(sourceIdx, outKey, targetIdx, inKey, wireId);
-                showToast('Połączenie usunięte', 'info');
-            });
+        function updateWiresForBlock(bIdx) {
+            const selector = `path[data-source-block="${bIdx}"], path[data-target-block="${bIdx}"]`;
+            const paths = document.querySelectorAll(selector);
+            for (let i = 0; i < paths.length; i++) {
+                const path = paths[i];
+                const sIdx = parseInt(path.dataset.sourceBlock, 10);
+                const tIdx = parseInt(path.dataset.targetBlock, 10);
+                const outKey = path.dataset.outKey;
+                const inKey = path.dataset.inKey;
+                const outSubIdx = parseInt(path.dataset.outSubIdx || '0', 10);
+                const inSubIdx = parseInt(path.dataset.inSubIdx || '0', 10);
 
-            svg.appendChild(path);
+                const sourceCard = document.getElementById(`block_${sIdx}`);
+                const targetCard = document.getElementById(`block_${tIdx}`);
+                if (!sourceCard || !targetCard) continue;
+
+                const sourcePort = sourceCard.querySelector(`[data-output-key="${outKey}"][data-sub-idx="${outSubIdx}"] .port-dot`) || sourceCard.querySelector(`[data-output-key="${outKey}"] .port-dot`);
+                const targetPort = targetCard.querySelector(`[data-input-key="${inKey}"][data-sub-idx="${inSubIdx}"] .port-dot`) || targetCard.querySelector(`[data-input-key="${inKey}"] .port-dot`);
+
+                const p1 = getPortCenterInCanvas(sourcePort, true, sourceCard);
+                const p2 = getPortCenterInCanvas(targetPort, false, targetCard);
+
+                const dx = Math.max(60, Math.abs(p2.x - p1.x) * 0.5);
+                path.setAttribute('d', `M ${p1.x} ${p1.y} C ${p1.x + dx} ${p1.y}, ${p2.x - dx} ${p2.y}, ${p2.x} ${p2.y}`);
+            }
         }
 
         function deleteWire(sourceIdx, outKey, targetIdx, inKey, wireId) {
@@ -6380,18 +6676,97 @@
             }
             drawWires();
             updateStats();
+            recordHistory('Usunięto połączenie');
+            debouncedSaveToDisk();
+        }
+
+        function disconnectPortWires(bIdx, isOutput, key, subIdx = 0) {
+            if (!currentWorkspace || !currentWorkspace.blocks[bIdx]) return;
+            const block = currentWorkspace.blocks[bIdx];
+            let removedCount = 0;
+
+            if (isOutput) {
+                if (block.outputs && block.outputs[key]) {
+                    const targets = block.outputs[key];
+                    let wireIdsToRemove = [];
+                    if (Array.isArray(targets[subIdx])) {
+                        wireIdsToRemove = [...targets[subIdx]];
+                        targets[subIdx] = [];
+                    } else if (typeof targets[subIdx] === 'string') {
+                        wireIdsToRemove = [targets[subIdx]];
+                        targets.splice(subIdx, 1);
+                    } else if (Array.isArray(targets)) {
+                        wireIdsToRemove = targets.flat().filter(x => typeof x === 'string');
+                        block.outputs[key] = [];
+                    }
+                    if (wireIdsToRemove.length > 0) {
+                        const wireSet = new Set(wireIdsToRemove);
+                        currentWorkspace.blocks.forEach(targetB => {
+                            if (!targetB.inputs) return;
+                            Object.entries(targetB.inputs).forEach(([inK, inVal]) => {
+                                if (Array.isArray(inVal)) targetB.inputs[inK] = inVal.filter(w => !wireSet.has(w));
+                                else if (wireSet.has(inVal)) delete targetB.inputs[inK];
+                            });
+                        });
+                        removedCount = wireIdsToRemove.length;
+                    }
+                }
+            } else {
+                if (block.inputs && block.inputs[key]) {
+                    const inVal = block.inputs[key];
+                    let wireIdsToRemove = [];
+                    if (Array.isArray(inVal)) {
+                        if (subIdx !== undefined && subIdx < inVal.length) {
+                            wireIdsToRemove = [inVal[subIdx]];
+                            inVal.splice(subIdx, 1);
+                        } else {
+                            wireIdsToRemove = [...inVal];
+                            delete block.inputs[key];
+                        }
+                    } else {
+                        wireIdsToRemove = [inVal];
+                        delete block.inputs[key];
+                    }
+                    if (wireIdsToRemove.length > 0) {
+                        const wireSet = new Set(wireIdsToRemove);
+                        currentWorkspace.blocks.forEach(srcB => {
+                            if (!srcB.outputs) return;
+                            Object.entries(srcB.outputs).forEach(([outK, outVal]) => {
+                                if (Array.isArray(outVal)) {
+                                    srcB.outputs[outK] = outVal.map(sub => Array.isArray(sub) ? sub.filter(w => !wireSet.has(w)) : sub).filter(w => !wireSet.has(w));
+                                }
+                            });
+                        });
+                        removedCount = wireIdsToRemove.length;
+                    }
+                }
+            }
+
+            if (removedCount > 0) {
+                drawWires();
+                updateStats();
+                recordHistory('Odłączono kable');
+                showToast(`Odłączono ${removedCount} kabel(-li)`, 'info');
+                debouncedSaveToDisk();
+            }
         }
 
         let activeSourceWrapper = null;
+        let candidateSnapPorts = [];
+        let hoveredSnapPort = null;
+
         function cancelConnectingWire() {
             if (activeSourceWrapper) {
                 activeSourceWrapper.classList.remove('connecting-source');
                 activeSourceWrapper = null;
             }
-            document.querySelectorAll('.port-item').forEach(p => p.classList.remove('wire-target-hover', 'connecting-source'));
+            document.querySelectorAll('.port-item').forEach(p => p.classList.remove('wire-target-hover', 'connecting-source', 'compatible-target', 'is-data'));
             document.body.classList.remove('is-wiring');
+            candidateSnapPorts = [];
+            hoveredSnapPort = null;
+            const temp = document.getElementById('tempConnectingWire');
+            if (temp) temp.style.display = 'none';
             connectingWire = null;
-            drawWires();
         }
 
         function startConnectingWire(blockIdx, portKey, isAction, outSubIdx = 0, portWrapperEl = null) {
@@ -6399,45 +6774,268 @@
             const sourceCard = document.getElementById(`block_${blockIdx}`);
             const sourcePort = sourceCard?.querySelector(`[data-output-key="${portKey}"][data-sub-idx="${outSubIdx}"] .port-dot`) || sourceCard?.querySelector(`[data-output-key="${portKey}"] .port-dot`);
             const startPos = getPortCenterInCanvas(sourcePort, true, sourceCard);
+            const portType = (portWrapperEl && portWrapperEl.dataset.portType) || (isAction ? 'action' : 'unspecified');
+
             connectingWire = {
                 type: 'output',
                 blockIdx,
                 portKey,
                 outSubIdx,
+                portType,
                 isAction,
                 currentX: startPos.x,
                 currentY: startPos.y,
                 startTime: Date.now()
             };
+
             document.body.classList.add('is-wiring');
             if (portWrapperEl) {
                 activeSourceWrapper = portWrapperEl;
                 activeSourceWrapper.classList.add('connecting-source');
             }
-            drawWires();
+
+            candidateSnapPorts = [];
+            document.querySelectorAll('.dbb-ports-col.inputs .port-item').forEach(pItem => {
+                const bIdx = parseInt(pItem.dataset.blockIdx, 10);
+                if (bIdx === blockIdx) return;
+                const pDot = pItem.querySelector('.port-dot');
+                const card = document.getElementById(`block_${bIdx}`);
+                const center = getPortCenterInCanvas(pDot, false, card);
+                const targetType = pItem.dataset.portType || 'unspecified';
+
+                const isCompatible = (portType === 'action') ? (targetType === 'action' || targetType === 'unspecified') : (targetType !== 'action');
+
+                if (isCompatible) {
+                    pItem.classList.add('compatible-target');
+                    if (portType !== 'action') pItem.classList.add('is-data');
+                }
+
+                candidateSnapPorts.push({
+                    el: pItem,
+                    x: center.x,
+                    y: center.y,
+                    blockIdx: bIdx,
+                    key: pItem.dataset.inputKey,
+                    subIdx: pItem.dataset.subIdx,
+                    isCompatible
+                });
+            });
+
+            renderTemporaryWire();
+        }
+
+        function startConnectingWireFromInput(blockIdx, portKey, isAction, inSubIdx = 0, portWrapperEl = null) {
+            cancelConnectingWire();
+            const sourceCard = document.getElementById(`block_${blockIdx}`);
+            const sourcePort = sourceCard?.querySelector(`[data-input-key="${portKey}"][data-sub-idx="${inSubIdx}"] .port-dot`) || sourceCard?.querySelector(`[data-input-key="${portKey}"] .port-dot`);
+            const startPos = getPortCenterInCanvas(sourcePort, false, sourceCard);
+            const portType = (portWrapperEl && portWrapperEl.dataset.portType) || (isAction ? 'action' : 'unspecified');
+
+            connectingWire = {
+                type: 'input',
+                blockIdx,
+                portKey,
+                inSubIdx,
+                portType,
+                isAction,
+                currentX: startPos.x,
+                currentY: startPos.y,
+                startTime: Date.now()
+            };
+
+            document.body.classList.add('is-wiring');
+            if (portWrapperEl) {
+                activeSourceWrapper = portWrapperEl;
+                activeSourceWrapper.classList.add('connecting-source');
+            }
+
+            candidateSnapPorts = [];
+            document.querySelectorAll('.dbb-ports-col.outputs .port-item').forEach(pItem => {
+                const bIdx = parseInt(pItem.dataset.blockIdx, 10);
+                if (bIdx === blockIdx) return;
+                const pDot = pItem.querySelector('.port-dot');
+                const card = document.getElementById(`block_${bIdx}`);
+                const center = getPortCenterInCanvas(pDot, true, card);
+                const targetType = pItem.dataset.portType || 'unspecified';
+
+                const isCompatible = (portType === 'action') ? (targetType === 'action' || targetType === 'unspecified') : (targetType !== 'action');
+
+                if (isCompatible) {
+                    pItem.classList.add('compatible-target');
+                    if (portType !== 'action') pItem.classList.add('is-data');
+                }
+
+                candidateSnapPorts.push({
+                    el: pItem,
+                    x: center.x,
+                    y: center.y,
+                    blockIdx: bIdx,
+                    key: pItem.dataset.outputKey,
+                    subIdx: pItem.dataset.subIdx,
+                    isCompatible
+                });
+            });
+
+            renderTemporaryWire();
         }
 
         function renderTemporaryWire() {
             const svg = document.getElementById('wiresSvg');
-            const sourceCard = document.getElementById(`block_${connectingWire.blockIdx}`);
-            if (!sourceCard) return;
+            if (!svg || !connectingWire) return;
 
-            const sourcePort = sourceCard.querySelector(`[data-output-key="${connectingWire.portKey}"][data-sub-idx="${connectingWire.outSubIdx || 0}"] .port-dot`) || sourceCard.querySelector(`[data-output-key="${connectingWire.portKey}"] .port-dot`);
-            const p1 = getPortCenterInCanvas(sourcePort, true, sourceCard);
-            const p2 = { x: connectingWire.currentX, y: connectingWire.currentY };
+            let path = document.getElementById('tempConnectingWire');
+            if (!path) {
+                path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                path.id = 'tempConnectingWire';
+                path.setAttribute('stroke-width', '3');
+                path.setAttribute('stroke-dasharray', '6,4');
+                path.setAttribute('fill', 'none');
+                svg.appendChild(path);
+            }
+
+            path.style.display = 'block';
+
+            let p1, p2;
+            const sourceCard = document.getElementById(`block_${connectingWire.blockIdx}`);
+            if (connectingWire.type === 'output') {
+                const sourcePort = sourceCard?.querySelector(`[data-output-key="${connectingWire.portKey}"][data-sub-idx="${connectingWire.outSubIdx || 0}"] .port-dot`) || sourceCard?.querySelector(`[data-output-key="${connectingWire.portKey}"] .port-dot`);
+                p1 = getPortCenterInCanvas(sourcePort, true, sourceCard);
+                p2 = { x: connectingWire.currentX, y: connectingWire.currentY };
+            } else {
+                const sourcePort = sourceCard?.querySelector(`[data-input-key="${connectingWire.portKey}"][data-sub-idx="${connectingWire.inSubIdx || 0}"] .port-dot`) || sourceCard?.querySelector(`[data-input-key="${connectingWire.portKey}"] .port-dot`);
+                p1 = { x: connectingWire.currentX, y: connectingWire.currentY };
+                p2 = getPortCenterInCanvas(sourcePort, false, sourceCard);
+            }
 
             const dx = Math.max(60, Math.abs(p2.x - p1.x) * 0.5);
             const pathData = `M ${p1.x} ${p1.y} C ${p1.x + dx} ${p1.y}, ${p2.x - dx} ${p2.y}, ${p2.x} ${p2.y}`;
 
-            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            const wireColor = connectingWire.isAction ? '#ff4fa6' : '#00b894';
             path.setAttribute('d', pathData);
-            path.setAttribute('stroke', connectingWire.isAction ? '#ff5e97' : '#00b894');
-            path.setAttribute('stroke-width', '3');
-            path.setAttribute('stroke-dasharray', '6,4');
-            path.setAttribute('fill', 'none');
+            path.setAttribute('stroke', wireColor);
             path.setAttribute('opacity', '0.9');
-            path.style.filter = 'drop-shadow(0 0 6px ' + (connectingWire.isAction ? 'rgba(255,94,151,0.8)' : 'rgba(0,184,148,0.8)') + ')';
-            svg.appendChild(path);
+        }
+
+        let quickConnectOrigin = null;
+
+        function openQuickConnect(clientX, clientY) {
+            if (!connectingWire) return;
+            quickConnectOrigin = { ...connectingWire };
+
+            const popup = document.getElementById('quickConnectPopup');
+            if (!popup) {
+                cancelConnectingWire();
+                return;
+            }
+
+            const areaRect = document.getElementById('canvasArea').getBoundingClientRect();
+            const canvasX = Math.round((clientX - areaRect.left - panX) / zoomScale);
+            const canvasY = Math.round((clientY - areaRect.top - panY) / zoomScale);
+            quickConnectOrigin.targetX = canvasX;
+            quickConnectOrigin.targetY = canvasY;
+
+            let x = clientX, y = clientY;
+            const w = 280, h = 340;
+            if (x + w > window.innerWidth) x = window.innerWidth - w - 10;
+            if (y + h > window.innerHeight) y = window.innerHeight - h - 10;
+            popup.style.left = `${x}px`;
+            popup.style.top = `${y}px`;
+            popup.style.display = 'flex';
+
+            const header = document.getElementById('quickConnectHeader');
+            if (header) {
+                header.textContent = quickConnectOrigin.type === 'output' ? 'Połącz wyjście z nowym blokiem' : 'Połącz z wyjściem nowego bloku';
+            }
+
+            const search = document.getElementById('quickConnectSearch');
+            search.value = '';
+            renderQuickConnectItems(installedBlocks);
+            setTimeout(() => search.focus(), 50);
+        }
+
+        function closeQuickConnect() {
+            const popup = document.getElementById('quickConnectPopup');
+            if (popup) popup.style.display = 'none';
+            quickConnectOrigin = null;
+            cancelConnectingWire();
+        }
+
+        function renderQuickConnectItems(blocks) {
+            const list = document.getElementById('quickConnectList');
+            if (!list) return;
+            list.innerHTML = '';
+
+            const isAction = quickConnectOrigin ? quickConnectOrigin.isAction : true;
+            const originType = quickConnectOrigin ? quickConnectOrigin.type : 'output';
+
+            const matchingBlocks = blocks.filter(b => {
+                const ports = originType === 'output' ? (b.inputs || []) : (b.outputs || []);
+                if (ports.length === 0) return false;
+                if (isAction) {
+                    return ports.some(p => p.id?.toLowerCase().includes('action') || p.type === 'action');
+                }
+                return true;
+            });
+
+            const listToShow = matchingBlocks.length > 0 ? matchingBlocks : blocks;
+
+            listToShow.slice(0, 30).forEach(b => {
+                const catSlug = getCategorySlug(b.category);
+                const color = getCategoryColor(catSlug);
+                const item = document.createElement('div');
+                item.className = 'context-item';
+                item.innerHTML = `<span class="context-item-dot" style="background:${color}"></span> <span>${b.name}</span>`;
+                item.onclick = () => {
+                    spawnAndConnectBlock(b);
+                    closeQuickConnect();
+                };
+                list.appendChild(item);
+            });
+        }
+
+        function filterQuickConnect() {
+            const q = document.getElementById('quickConnectSearch').value.toLowerCase();
+            const filtered = installedBlocks.filter(b =>
+                b.name.toLowerCase().includes(q) || b.category.toLowerCase().includes(q) || b.idName.toLowerCase().includes(q)
+            );
+            renderQuickConnectItems(filtered);
+        }
+
+        function spawnAndConnectBlock(blockDef) {
+            if (!quickConnectOrigin || !currentWorkspace) return;
+            const x = quickConnectOrigin.targetX || 100;
+            const y = quickConnectOrigin.targetY || 100;
+
+            spawnBlockAtPos(blockDef, x, y);
+            const newBlockIdx = currentWorkspace.blocks.length - 1;
+            const newBlock = currentWorkspace.blocks[newBlockIdx];
+
+            if (quickConnectOrigin.type === 'output') {
+                const def = getBlockFullDef(newBlock);
+                let targetInputKey = null;
+                if (quickConnectOrigin.isAction) {
+                    const actIn = (def.inputs || []).find(i => i.id?.toLowerCase().includes('action') || i.type === 'action');
+                    targetInputKey = actIn ? actIn.id : (def.inputs?.[0]?.id || 'action');
+                } else {
+                    const dataIn = (def.inputs || []).find(i => !i.id?.toLowerCase().includes('action'));
+                    targetInputKey = dataIn ? dataIn.id : (def.inputs?.[0]?.id || 'input');
+                }
+                finishConnectingWire(quickConnectOrigin.blockIdx, quickConnectOrigin.portKey, newBlockIdx, targetInputKey, quickConnectOrigin.outSubIdx || 0, null);
+            } else {
+                const def = getBlockFullDef(newBlock);
+                let targetOutputKey = null;
+                if (quickConnectOrigin.isAction) {
+                    const actOut = (def.outputs || []).find(o => o.id?.toLowerCase().includes('action') || o.type === 'action');
+                    targetOutputKey = actOut ? actOut.id : (def.outputs?.[0]?.id || 'action');
+                } else {
+                    const dataOut = (def.outputs || []).find(o => !o.id?.toLowerCase().includes('action'));
+                    targetOutputKey = dataOut ? dataOut.id : (def.outputs?.[0]?.id || 'output');
+                }
+                finishConnectingWire(newBlockIdx, targetOutputKey, quickConnectOrigin.blockIdx, quickConnectOrigin.portKey, 0, quickConnectOrigin.inSubIdx || null);
+            }
+
+            recordHistory(`Dodano i połączono: ${blockDef.name}`);
+            showToast(`Dodano i połączono: ${blockDef.name}`, 'success');
         }
 
         function finishConnectingWire(sourceIdx, outKey, targetIdx, inKey, outSubIdx = 0, inSubIdx = null) {
@@ -6472,8 +7070,10 @@
             }
 
             cancelConnectingWire();
-            saveToDisk();
+            drawWires();
             updateStats();
+            recordHistory('Połączono kablem');
+            debouncedSaveToDisk();
         }
 
         // ═══════ CANVAS EVENTS ═══════
@@ -6553,48 +7153,49 @@
                                 el.style.left = `${block.x}px`;
                                 el.style.top = `${block.y}px`;
                             }
-                            scheduleDrawWires();
+                            updateWiresForBlock(dragBlockIdx);
                         } else if (connectingWire) {
                             const areaRect = canvasArea.getBoundingClientRect();
                             let rawX = (ev.clientX - areaRect.left - panX) / zoomScale;
                             let rawY = (ev.clientY - areaRect.top - panY) / zoomScale;
 
-                            // Magnetyczne przyciąganie (Magnetic Snap) w promieniu 45px do najbliższego portu wejściowego
                             let closestPort = null;
-                            let minDist = 45;
-                            document.querySelectorAll('.dbb-ports-col.inputs .port-item').forEach(pItem => {
-                                const bIdx = parseInt(pItem.dataset.blockIdx, 10);
-                                if (bIdx === connectingWire.blockIdx) return; // Nie łącz do samego siebie
-                                const pDot = pItem.querySelector('.port-dot');
-                                const card = document.getElementById(`block_${bIdx}`);
-                                const center = getPortCenterInCanvas(pDot, false, card);
-                                const dist = Math.hypot(center.x - rawX, center.y - rawY);
+                            let minDist = 48; // wygodny promień przyciągania
+
+                            for (let i = 0; i < candidateSnapPorts.length; i++) {
+                                const cp = candidateSnapPorts[i];
+                                const dist = Math.hypot(cp.x - rawX, cp.y - rawY);
                                 if (dist < minDist) {
                                     minDist = dist;
-                                    closestPort = { el: pItem, x: center.x, y: center.y };
+                                    closestPort = cp;
                                 }
-                            });
+                            }
 
-                            document.querySelectorAll('.port-item').forEach(p => p.classList.remove('wire-target-hover'));
+                            candidateSnapPorts.forEach(cp => cp.el.classList.remove('wire-target-hover'));
+
                             if (closestPort) {
                                 rawX = closestPort.x;
                                 rawY = closestPort.y;
                                 closestPort.el.classList.add('wire-target-hover');
+                                hoveredSnapPort = closestPort;
+                            } else {
+                                hoveredSnapPort = null;
                             }
 
                             connectingWire.currentX = rawX;
                             connectingWire.currentY = rawY;
-                            scheduleDrawWires();
+                            renderTemporaryWire();
                         }
                     });
                 }
             });
 
-            window.addEventListener('mouseup', () => {
+            window.addEventListener('mouseup', (e) => {
                 if (isPanning) {
                     canvasArea.style.cursor = 'default';
                 }
                 const wasDraggingOrResizing = isDraggingBlock || isResizingBlock;
+                const prevDragIdx = dragBlockIdx;
                 isPanning = false;
                 isDraggingBlock = false;
                 dragBlockIdx = null;
@@ -6602,21 +7203,44 @@
                 if (isResizingBlock) {
                     isResizingBlock = false;
                     resizeBlockIdx = null;
-                    saveToDisk();
+                    recordHistory('Zmieniono rozmiar bloku');
+                    debouncedSaveToDisk();
                 }
 
                 if (connectingWire) {
                     const elapsed = Date.now() - (connectingWire.startTime || 0);
-                    // Jeśli przeciągał i puścił w pustym miejscu po dłuższym czasie (>280ms) -> anuluj
-                    if (elapsed > 280) {
-                        cancelConnectingWire();
+
+                    if (hoveredSnapPort) {
+                        if (connectingWire.type === 'output') {
+                            finishConnectingWire(
+                                connectingWire.blockIdx,
+                                connectingWire.portKey,
+                                hoveredSnapPort.blockIdx,
+                                hoveredSnapPort.key,
+                                connectingWire.outSubIdx || 0,
+                                hoveredSnapPort.subIdx !== undefined ? parseInt(hoveredSnapPort.subIdx, 10) : null
+                            );
+                        } else {
+                            finishConnectingWire(
+                                hoveredSnapPort.blockIdx,
+                                hoveredSnapPort.key,
+                                connectingWire.blockIdx,
+                                connectingWire.portKey,
+                                hoveredSnapPort.subIdx !== undefined ? parseInt(hoveredSnapPort.subIdx, 10) : 0,
+                                connectingWire.inSubIdx || null
+                            );
+                        }
+                    } else if (elapsed > 280) {
+                        // Upuszczono kabel na pustej planszy -> Szybkie Połączenie (Quick Connect)
+                        openQuickConnect(e.clientX, e.clientY);
                     }
-                    // W przeciwnym razie użytkownik kliknął (tryb Click-to-Connect) -> kabel czeka na kliknięcie celu!
                 }
 
                 if (wasDraggingOrResizing) {
                     updateMinimap();
-                    drawWires();
+                    if (prevDragIdx !== null) {
+                        recordHistory('Przesunięto blok');
+                    }
                     renderInfoPanel();
                 }
             });
@@ -6624,6 +7248,12 @@
             canvasArea.addEventListener('contextmenu', (e) => {
                 e.preventDefault();
                 showContextMenu(e.clientX, e.clientY);
+            });
+
+            canvasArea.addEventListener('dblclick', (e) => {
+                if (e.target === canvasArea || e.target === canvasContent || e.target.id === 'canvasGrid' || e.target.tagName === 'svg') {
+                    showContextMenu(e.clientX, e.clientY);
+                }
             });
 
             // Scroll zoom - wycentrowany względem kursora myszy, bez rozjeżdżania kabli!
@@ -6836,6 +7466,20 @@
             const list = document.getElementById('ctxList');
             list.innerHTML = '';
 
+            const tidyItem = document.createElement('div');
+            tidyItem.className = 'context-item';
+            tidyItem.innerHTML = `<span class="context-item-dot" style="background:#ff4fa6"></span> <b>🪄 Uporządkuj bloki</b>`;
+            tidyItem.onclick = () => { autoArrangeBlocks(); hideContextMenu(); };
+            list.appendChild(tidyItem);
+
+            if (selectedNodeIdx !== null && currentWorkspace && currentWorkspace.blocks && currentWorkspace.blocks[selectedNodeIdx]) {
+                const dupItem = document.createElement('div');
+                dupItem.className = 'context-item';
+                dupItem.innerHTML = `<span class="context-item-dot" style="background:#00cec9"></span> <b>📋 Duplikuj blok (Ctrl+D)</b>`;
+                dupItem.onclick = () => { duplicateSelectedBlock(); hideContextMenu(); };
+                list.appendChild(dupItem);
+            }
+
             const noteItem = document.createElement('div');
             noteItem.className = 'context-item context-item-note';
             noteItem.innerHTML = `<span class="context-item-dot" style="background:var(--m-accent)"></span> Nowa sekcja (obszar)`;
@@ -6879,6 +7523,140 @@
             renderContextMenuItems(filtered);
         }
 
+        // ═══════ AUTOMATYCZNE UKŁADANIE BLOKÓW I DUPLIKOWANIE ═══════
+        function autoArrangeBlocks() {
+            if (!currentWorkspace || !currentWorkspace.blocks || currentWorkspace.blocks.length === 0) {
+                showToast('Brak bloków do uporządkowania', 'info');
+                return;
+            }
+
+            const blocks = currentWorkspace.blocks;
+            const n = blocks.length;
+
+            const wireSourceMap = new Map();
+            blocks.forEach((b, bIdx) => {
+                if (!b.outputs) return;
+                Object.values(b.outputs).forEach(target => {
+                    if (Array.isArray(target)) {
+                        target.forEach(sub => {
+                            if (Array.isArray(sub)) sub.forEach(id => { if (id) wireSourceMap.set(id, bIdx); });
+                            else if (typeof sub === 'string' && sub) wireSourceMap.set(sub, bIdx);
+                        });
+                    }
+                });
+            });
+
+            const inEdges = Array.from({ length: n }, () => new Set());
+            const outEdges = Array.from({ length: n }, () => new Set());
+
+            blocks.forEach((b, targetIdx) => {
+                if (!b.inputs) return;
+                Object.values(b.inputs).forEach(inVal => {
+                    const ids = Array.isArray(inVal) ? inVal : [inVal];
+                    ids.forEach(id => {
+                        if (wireSourceMap.has(id)) {
+                            const srcIdx = wireSourceMap.get(id);
+                            if (srcIdx !== targetIdx) {
+                                inEdges[targetIdx].add(srcIdx);
+                                outEdges[srcIdx].add(targetIdx);
+                            }
+                        }
+                    });
+                });
+            });
+
+            const levels = new Array(n).fill(0);
+            const roots = [];
+            for (let i = 0; i < n; i++) {
+                if (inEdges[i].size === 0) roots.push(i);
+            }
+            if (roots.length === 0) roots.push(0);
+
+            const queue = [...roots];
+            const visited = new Set(roots);
+            while (queue.length > 0) {
+                const u = queue.shift();
+                const nextLevel = levels[u] + 1;
+                outEdges[u].forEach(v => {
+                    levels[v] = Math.max(levels[v], nextLevel);
+                    if (!visited.has(v)) {
+                        visited.add(v);
+                        queue.push(v);
+                    }
+                });
+            }
+
+            const columns = [];
+            for (let i = 0; i < n; i++) {
+                const col = levels[i];
+                if (!columns[col]) columns[col] = [];
+                columns[col].push(i);
+            }
+
+            let startX = 80;
+            const colSpacing = 370;
+            const rowSpacing = 36;
+
+            columns.forEach((colBlocks, colIdx) => {
+                if (!colBlocks || colBlocks.length === 0) return;
+                let curY = 80;
+                colBlocks.forEach(bIdx => {
+                    const b = blocks[bIdx];
+                    b.x = startX + (colIdx * colSpacing);
+                    b.y = curY;
+                    const h = b.height || 180;
+                    curY += h + rowSpacing;
+                });
+            });
+
+            renderCanvas();
+            recordHistory('Uporządkowano bloki');
+            showToast('Uporządkowano układ bloków!', 'success');
+        }
+
+        function duplicateSelectedBlock() {
+            if (selectedNodeIdx === null || !currentWorkspace || !currentWorkspace.blocks[selectedNodeIdx]) {
+                return;
+            }
+            const src = currentWorkspace.blocks[selectedNodeIdx];
+            const blockDef = getBlockFullDef(src);
+
+            const inputsObj = {};
+            if (blockDef.inputs) blockDef.inputs.forEach(i => inputsObj[i.id] = i.multiInput ? [] : "");
+
+            const outputsObj = {};
+            if (blockDef.outputs) blockDef.outputs.forEach(o => outputsObj[o.id] = o.multiOutput ? [[]] : []);
+
+            const newBlock = {
+                color: src.color || "",
+                x: (src.x || 0) + 40,
+                y: (src.y || 0) + 40,
+                z: (src.z || 0) + 1,
+                width: src.width || 300,
+                height: src.height || 180,
+                lock: false,
+                name: src.name,
+                inputs: inputsObj,
+                options: JSON.parse(JSON.stringify(src.options || {})),
+                outputs: outputsObj,
+                active: true
+            };
+
+            currentWorkspace.blocks.push(newBlock);
+            const newIdx = currentWorkspace.blocks.length - 1;
+            renderCanvas();
+
+            selectedNodeIdx = newIdx;
+            const card = document.getElementById(`block_${newIdx}`);
+            if (card) {
+                document.querySelectorAll('.dbb-card').forEach(c => c.classList.remove('selected'));
+                card.classList.add('selected');
+                renderInfoPanel();
+            }
+            recordHistory(`Zduplikowano: ${blockDef.name}`);
+            showToast(`Zduplikowano: ${blockDef.name} (Ctrl+D)`, 'info');
+        }
+
         // ═══════ BLOCK MANAGEMENT ═══════
         function spawnBlockAtPos(blockDef, x, y) {
             if (!currentWorkspace) {
@@ -6913,6 +7691,7 @@
 
             currentWorkspace.blocks.push(newBlock);
             renderCanvas();
+            recordHistory(`Dodano: ${blockDef.name}`);
             showToast(`Dodano: ${blockDef.name}`, 'success');
         }
 
@@ -6968,6 +7747,7 @@
                 removeWireIdsFromWorkspace(currentWorkspace, ids);
                 selectedNodeIdx = null;
                 renderCanvas();
+                recordHistory('Usunięto blok');
                 showToast(`Usunięto blok`, 'info');
             }
         }
@@ -7037,21 +7817,53 @@
 
                 const typing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
 
-                if (e.key === 'Delete' && selectedNoteIdx !== null && !typing && currentWorkspace?.notes) {
+                // Ctrl+Z → undo
+                if (e.ctrlKey && (e.key === 'z' || e.key === 'Z') && !e.shiftKey) {
+                    if (!typing) {
+                        e.preventDefault();
+                        undo();
+                    }
+                }
+
+                // Ctrl+Y or Ctrl+Shift+Z → redo
+                if ((e.ctrlKey && (e.key === 'y' || e.key === 'Y')) || (e.ctrlKey && e.shiftKey && (e.key === 'z' || e.key === 'Z'))) {
+                    if (!typing) {
+                        e.preventDefault();
+                        redo();
+                    }
+                }
+
+                // Ctrl+D → duplicate selected block
+                if (e.ctrlKey && (e.key === 'd' || e.key === 'D')) {
+                    if (!typing && selectedNodeIdx !== null) {
+                        e.preventDefault();
+                        duplicateSelectedBlock();
+                    }
+                }
+
+                // Space → open block search at mouse / center
+                if (e.code === 'Space' && !typing) {
+                    e.preventDefault();
+                    showContextMenu(window.innerWidth / 2, window.innerHeight / 2);
+                }
+
+                if ((e.key === 'Delete' || e.key === 'Backspace') && selectedNoteIdx !== null && !typing && currentWorkspace?.notes) {
                     e.preventDefault();
                     currentWorkspace.notes.splice(selectedNoteIdx, 1);
                     selectedNoteIdx = null;
                     renderCanvas();
+                    recordHistory('Usunięto sekcję');
                 }
 
-                // Delete → remove selected block
-                if (e.key === 'Delete' && selectedNodeIdx !== null && !typing) {
+                // Delete / Backspace → remove selected block
+                if ((e.key === 'Delete' || e.key === 'Backspace') && selectedNodeIdx !== null && !typing) {
                     e.preventDefault();
                     deleteBlock(e, selectedNodeIdx);
                 }
 
-                // Escape → deselect / close context menu
+                // Escape → deselect / close context menu / quick connect
                 if (e.key === 'Escape') {
+                    closeQuickConnect();
                     if (connectingWire) {
                         cancelConnectingWire();
                         return;

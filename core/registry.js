@@ -77,7 +77,9 @@ function markRunning(id, info, root) {
 
 function runState(id, root) {
     const st = readJson(path.join(dirs(root).run, `${id}.json`), null);
-    return st && pidAlive(st.pid) ? st : null;
+    // pid równy naszemu własnemu to zostawiony po awarii plik z poprzedniego startu (w kontenerze każdy proces to PID 1) —
+    // inaczej nowy start uznałby, że „już działa”, od razu kończył pracę i Docker restartowałby go w nieskończoność
+    return st && st.pid !== process.pid && pidAlive(st.pid) ? st : null;
 }
 
 // Wszystkie aplikacje Pitayas na tym komputerze (i które z nich działają)
