@@ -50,6 +50,9 @@ module.exports = {
             }).filter((x) => x[0])
             .map((x) => x.map((x) => x.options).flat())
             .flat()[0];
+
+        if (!values) return;
+
         const id = values?.id;
         const option = values?.option;
         try {

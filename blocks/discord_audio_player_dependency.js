@@ -242,6 +242,9 @@ module.exports = {
             .filter((x) => x[0])
             .map((x) => x.map((x) => x.options).flat())
             .flat()[0];
+
+        if (!values) return;
+
         const isYouTubeExtractorEnabled = values?.["discord-player-youtubei"] ?? true;
         const isDeezerEnabled = values?.["discord-player-deezer"] ?? false;
         const isYandexMusicEnabled = values?.["discord-player-yandexmusic"] ?? false;

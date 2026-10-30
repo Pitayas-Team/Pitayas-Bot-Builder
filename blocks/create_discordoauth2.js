@@ -35,6 +35,9 @@ module.exports = {
                 return workspace.blocks.filter((x) => x.name == blockName);
             }
         }).filter(x => x[0]).map(x => x.map(x => x.options).flat()).flat()[0];
+
+        if (!values) return;
+
         const crypto = require("crypto");
         const packageManager = require('./!auto_package_manager').getPackageManager();
 
