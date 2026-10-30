@@ -5563,6 +5563,8 @@
         }
 
         function switchWorkspace(ws) {
+            closeQuickConnect();
+            hideContextMenu();
             if (!ws) {
                 currentWorkspace = null;
                 document.getElementById('editorWsTitle').textContent = 'Brak otwartego kodu';
@@ -7060,6 +7062,13 @@
             search.value = '';
             renderQuickConnectItems(installedBlocks);
             setTimeout(() => search.focus(), 50);
+
+            // Zafiksuj kabel na pozycji docelowej okienka i zwolnij connectingWire,
+            // aby kabel nie podążał za kursorem podczas gdy otwarte jest menu
+            connectingWire.currentX = canvasX;
+            connectingWire.currentY = canvasY;
+            renderTemporaryWire();
+            connectingWire = null;
         }
 
         function closeQuickConnect() {
@@ -7190,8 +7199,25 @@
             const canvasArea = document.getElementById('canvasArea');
             const canvasContent = document.getElementById('canvasContent');
 
+            // Globalny nasłuch kliknięcia w oknie (faza capture) - natychmiastowe zamykanie
+            // okienka szybkiego połączenia, menu kontekstowego i kabla przy kliknięciu poza nimi
+            window.addEventListener('mousedown', (e) => {
+                const qc = document.getElementById('quickConnectPopup');
+                if (qc && qc.style.display !== 'none' && !e.target.closest('#quickConnectPopup')) {
+                    closeQuickConnect();
+                }
+                const ctx = document.getElementById('contextMenu');
+                if (ctx && ctx.style.display !== 'none' && !e.target.closest('#contextMenu')) {
+                    hideContextMenu();
+                }
+                if (connectingWire && !e.target.closest('.port-item') && !e.target.closest('#quickConnectPopup')) {
+                    cancelConnectingWire();
+                }
+            }, true);
+
             canvasArea.addEventListener('mousedown', (e) => {
                 hideContextMenu();
+                closeQuickConnect();
                 if (e.button === 0 && connectingWire) {
                     // Kliknięcie w pusty obszar podczas łączenia anuluje kabel
                     cancelConnectingWire();
@@ -7356,17 +7382,23 @@
 
             canvasArea.addEventListener('contextmenu', (e) => {
                 e.preventDefault();
+                closeQuickConnect();
+                if (connectingWire) cancelConnectingWire();
                 showContextMenu(e.clientX, e.clientY);
             });
 
             canvasArea.addEventListener('dblclick', (e) => {
                 if (e.target === canvasArea || e.target === canvasContent || e.target.id === 'canvasGrid' || e.target.tagName === 'svg') {
+                    closeQuickConnect();
+                    if (connectingWire) cancelConnectingWire();
                     showContextMenu(e.clientX, e.clientY);
                 }
             });
 
             // Scroll zoom - wycentrowany względem kursora myszy, bez rozjeżdżania kabli!
             canvasArea.addEventListener('wheel', (e) => {
+                closeQuickConnect();
+                hideContextMenu();
                 e.preventDefault();
                 const delta = e.deltaY > 0 ? -0.08 : 0.08;
                 zoomCanvas(delta, e.clientX, e.clientY);
