@@ -2894,6 +2894,14 @@
         }
         .zoom-btn { border-radius: 8px !important; color: var(--m-text-2) !important; }
         .zoom-btn:hover { background: var(--m-item-hover) !important; color: var(--m-text) !important; }
+        .zoom-btn.active { background: var(--m-accent-soft) !important; color: var(--m-accent) !important; }
+
+        /* Prostokąt zaznaczenia (przeciąganie po pustym miejscu planszy) */
+        .dbb-marquee {
+            position: fixed; z-index: 70; pointer-events: none;
+            border: 1.5px solid var(--m-accent); background: rgba(255, 79, 166, 0.10); border-radius: 4px;
+        }
+        body.is-marquee, body.is-marquee * { user-select: none !important; cursor: crosshair !important; }
 
         
         .wire-path { stroke-width: 2.5 !important; opacity: 0.9 !important; stroke-linecap: round; cursor: pointer; transition: stroke-width 100ms ease; }
@@ -3546,6 +3554,7 @@
                             <button class="zoom-btn" onclick="zoomCanvas(0.1)" title="Przybliż">+</button>
                             <button class="zoom-btn" onclick="resetZoom()" title="Resetuj zoom do 100%" style="font-size: 11px;">⊙</button>
                             <button class="zoom-btn" onclick="fitView()" title="Dopasuj widok (Wyśrodkuj bloki)" style="font-size: 12px;">⛶</button>
+                            <button class="zoom-btn" id="panModeBtn" onclick="togglePanMode()" title="Rączka (H): przeciąganie przesuwa planszę. Wyłączona — przeciąganie po pustym miejscu zaznacza bloki. Planszę zawsze przesuniesz środkowym przyciskiem myszy albo Alt + przeciąganiem." style="font-size: 13px;">✋</button>
                         </div>
 
                         <!-- MINIMAP -->
@@ -3869,6 +3878,14 @@
         let currentWorkspace = null;
         let installedBlocks = [];
         let selectedNodeIdx = null;
+        // Zaznaczanie wielu bloków (jak w Eksploratorze): selectedSet = wszystkie zaznaczone indeksy,
+        // selectedNodeIdx = „główny” blok (ostatnio kliknięty) — z niego korzysta panel właściwości i skróty dla jednego bloku.
+        let selectedSet = new Set();
+        let isMarquee = false;      // trwa rysowanie prostokąta zaznaczenia
+        let panMode = false;        // tryb „rączki”: przeciąganie lewym przyciskiem przesuwa planszę
+        let dragGroup = null;       // przeciąganie kilku bloków naraz
+        let dragMoved = false;      // czy blok faktycznie ruszył (klik bez ruchu zostawia jeden blok z grupy)
+        let pendingCollapse = null; // klik w zaznaczony blok z grupy: po puszczeniu bez ruchu zaznacz tylko jego
         let isBotRunning = false;
         let currentProjectName = null;
         let currentProjectDir = null;
@@ -4138,7 +4155,7 @@
                 currentProjectDir = res.path;
                 currentProjectName = res.current;
                 currentWorkspace = null;
-                selectedNodeIdx = null;
+                clearBlockSelection();
                 openWorkspaceIds = [];
                 rawWorkspacesData = await ipcRenderer.invoke('load-workspaces');
                 renderWorkspacesTree();
@@ -4165,7 +4182,7 @@
             if (res.ok) {
                 showToast(`Projekt "${res.current}" utworzony!`, 'success');
                 currentWorkspace = null;
-                selectedNodeIdx = null;
+                clearBlockSelection();
                 rawWorkspacesData = await ipcRenderer.invoke('load-workspaces');
                 renderWorkspacesTree();
                 findAndActivateDefaultWorkspace();
@@ -4187,7 +4204,7 @@
             if (res.ok) {
                 showToast(`Usunięto projekt "${projName}"`, 'info');
                 currentWorkspace = null;
-                selectedNodeIdx = null;
+                clearBlockSelection();
                 rawWorkspacesData = await ipcRenderer.invoke('load-workspaces');
                 renderWorkspacesTree();
                 findAndActivateDefaultWorkspace();
@@ -4264,11 +4281,182 @@
         }
 
         function selectBlock(idx, center = true) {
-            selectedNodeIdx = idx;
-            clearNoteSelection();
-            document.querySelectorAll('.dbb-card').forEach(c => c.classList.toggle('selected', c.id === `block_${idx}`));
+            setBlockSelection([idx], idx);
             if (center) centerOnBlock(idx);
             renderInfoPanel();
+        }
+
+        // ═══════ ZAZNACZANIE WIELU BLOKÓW ═══════
+        function applySelectionClasses() {
+            document.querySelectorAll('.dbb-card').forEach(c => c.classList.toggle('selected', selectedSet.has(parseInt(c.id.slice(6), 10))));
+        }
+
+        function setBlockSelection(indices, primary = null) {
+            const n = currentWorkspace && currentWorkspace.blocks ? currentWorkspace.blocks.length : 0;
+            selectedSet = new Set(indices.filter(i => Number.isInteger(i) && i >= 0 && i < n));
+            const arr = [...selectedSet];
+            selectedNodeIdx = arr.length === 0 ? null : (primary !== null && selectedSet.has(primary) ? primary : arr[arr.length - 1]);
+            if (selectedSet.size) clearNoteSelection();
+            applySelectionClasses();
+        }
+
+        function clearBlockSelection() {
+            selectedSet = new Set();
+            selectedNodeIdx = null;
+            applySelectionClasses();
+        }
+
+        // Spójność po przerysowaniu (np. po cofnięciu): zaznaczenie nie może wskazywać nieistniejących bloków
+        function reconcileSelection() {
+            const n = currentWorkspace && currentWorkspace.blocks ? currentWorkspace.blocks.length : 0;
+            if (selectedNodeIdx === null || selectedNodeIdx >= n) {
+                selectedNodeIdx = null;
+                if (selectedSet.size) selectedSet = new Set();
+                return;
+            }
+            selectedSet = new Set([...selectedSet].filter(i => i < n));
+            if (!selectedSet.has(selectedNodeIdx)) selectedSet = new Set([selectedNodeIdx]);
+        }
+
+        function toggleBlockSelection(idx) {
+            const next = new Set(selectedSet);
+            if (next.has(idx)) next.delete(idx); else next.add(idx);
+            setBlockSelection([...next], next.has(idx) ? idx : null);
+        }
+
+        function selectAllBlocks() {
+            if (!currentWorkspace || !currentWorkspace.blocks || currentWorkspace.blocks.length === 0) return;
+            setBlockSelection(currentWorkspace.blocks.map((_, i) => i));
+            renderInfoPanel();
+            showToast(`Zaznaczono wszystkie bloki (${selectedSet.size})`, 'info');
+        }
+
+        const plBlocks = (n) => n === 1 ? 'blok' : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) ? 'bloki' : 'bloków';
+
+        function deleteSelectedBlocks() {
+            if (!currentWorkspace || !currentWorkspace.blocks || selectedSet.size === 0) return;
+            const idxs = [...selectedSet].filter(i => currentWorkspace.blocks[i]).sort((a, b) => b - a);
+            const ids = new Set();
+            idxs.forEach(i => {
+                const b = currentWorkspace.blocks[i];
+                collectWireIds([Object.values(b.inputs || {}), Object.values(b.outputs || {})]).forEach(id => ids.add(id));
+            });
+            idxs.forEach(i => currentWorkspace.blocks.splice(i, 1));
+            removeWireIdsFromWorkspace(currentWorkspace, ids);
+            clearBlockSelection();
+            renderCanvas();
+            recordHistory(`Usunięto ${idxs.length} ${plBlocks(idxs.length)}`);
+            showToast(`Usunięto ${idxs.length} ${plBlocks(idxs.length)}`, 'info');
+        }
+
+        // Duplikacja grupy: kable POMIĘDZY zaznaczonymi blokami są kopiowane (z nowymi identyfikatorami),
+        // kable do bloków spoza zaznaczenia zostają odcięte.
+        function duplicateSelectedBlocks() {
+            if (!currentWorkspace || !currentWorkspace.blocks) return;
+            const idxs = [...selectedSet].filter(i => currentWorkspace.blocks[i]).sort((a, b) => a - b);
+            if (idxs.length < 2) { duplicateSelectedBlock(); return; }
+            const outIds = new Set(), inIds = new Set();
+            idxs.forEach(i => {
+                const b = currentWorkspace.blocks[i];
+                Object.values(b.outputs || {}).forEach(v => collectWireIds(v).forEach(id => outIds.add(id)));
+                Object.values(b.inputs || {}).forEach(v => collectWireIds(v).forEach(id => inIds.add(id)));
+            });
+            const idMap = new Map();
+            outIds.forEach(id => { if (inIds.has(id)) idMap.set(id, Math.random().toString(36).substring(2, 12)); });
+            const remapList = (arr) => arr
+                .map(x => Array.isArray(x) ? remapList(x) : (idMap.has(x) ? idMap.get(x) : null))
+                .filter(x => x !== null);
+            const remapValue = (v, isInput) => Array.isArray(v) ? remapList(v) : (idMap.has(v) ? idMap.get(v) : (isInput ? '' : v));
+
+            const firstNew = currentWorkspace.blocks.length;
+            idxs.forEach(i => {
+                const copy = JSON.parse(JSON.stringify(currentWorkspace.blocks[i]));
+                copy.x = (copy.x || 0) + 40;
+                copy.y = (copy.y || 0) + 40;
+                copy.z = (copy.z || 0) + 1;
+                copy.lock = false;
+                Object.keys(copy.inputs || {}).forEach(k => { copy.inputs[k] = remapValue(copy.inputs[k], true); });
+                Object.keys(copy.outputs || {}).forEach(k => { copy.outputs[k] = remapValue(copy.outputs[k], false); });
+                currentWorkspace.blocks.push(copy);
+            });
+            const newIdxs = idxs.map((_, k) => firstNew + k);
+            setBlockSelection(newIdxs);
+            renderCanvas();
+            recordHistory(`Zduplikowano ${idxs.length} ${plBlocks(idxs.length)}`);
+            showToast(`Zduplikowano ${idxs.length} ${plBlocks(idxs.length)}${idMap.size ? ` i ${idMap.size} połączeń` : ''} (Ctrl+D)`, 'info');
+        }
+
+        let dragStart = null;
+        function dragStartDelta(block) {
+            if (!dragStart || dragStart.idx !== dragBlockIdx) dragStart = { idx: dragBlockIdx, x: block.x, y: block.y };
+            return block.x !== dragStart.x || block.y !== dragStart.y;
+        }
+
+        // Prostokąt zaznaczenia (przeciąganie po pustym miejscu planszy)
+        let marquee = null;
+        function startMarquee(e, additive) {
+            const area = document.getElementById('canvasArea').getBoundingClientRect();
+            if (!additive) {
+                clearBlockSelection();
+                clearNoteSelection();
+                renderInfoPanel();
+            }
+            const rects = [];
+            document.querySelectorAll('#blocksContainer .dbb-card').forEach(c => {
+                const i = parseInt(c.id.slice(6), 10);
+                if (isNaN(i)) return;
+                const r = c.getBoundingClientRect();
+                rects.push({ i, l: r.left, t: r.top, r: r.right, b: r.bottom });
+            });
+            marquee = { x0: e.clientX, y0: e.clientY, base: new Set(selectedSet), rects, el: null, moved: false, last: new Set(selectedSet), area };
+            isMarquee = true;
+        }
+
+        function updateMarquee(clientX, clientY) {
+            const m = marquee;
+            if (!m) return;
+            const x = Math.min(Math.max(clientX, m.area.left), m.area.right);
+            const y = Math.min(Math.max(clientY, m.area.top), m.area.bottom);
+            if (!m.moved && Math.hypot(x - m.x0, y - m.y0) < 4) return;   // zwykłe kliknięcie nie rysuje prostokąta
+            m.moved = true;
+            if (!m.el) {
+                m.el = document.createElement('div');
+                m.el.className = 'dbb-marquee';
+                document.body.appendChild(m.el);
+                document.body.classList.add('is-marquee');
+            }
+            const l = Math.min(m.x0, x), t = Math.min(m.y0, y), r = Math.max(m.x0, x), b = Math.max(m.y0, y);
+            m.el.style.left = `${l}px`; m.el.style.top = `${t}px`;
+            m.el.style.width = `${r - l}px`; m.el.style.height = `${b - t}px`;
+            const sel = new Set(m.base);
+            for (const c of m.rects) if (c.l < r && c.r > l && c.t < b && c.b > t) sel.add(c.i);   // wystarczy dotknąć bloku
+            new Set([...m.last, ...sel]).forEach(i => {
+                if (m.last.has(i) === sel.has(i)) return;
+                const el = document.getElementById(`block_${i}`);
+                if (el) el.classList.toggle('selected', sel.has(i));
+            });
+            m.last = sel;
+        }
+
+        function endMarquee() {
+            const m = marquee;
+            if (!m) return;
+            marquee = null;
+            isMarquee = false;
+            if (m.el) m.el.remove();
+            document.body.classList.remove('is-marquee');
+            if (m.moved) {
+                setBlockSelection([...m.last]);
+                renderInfoPanel();
+            }
+        }
+
+        function togglePanMode() {
+            panMode = !panMode;
+            const btn = document.getElementById('panModeBtn');
+            if (btn) btn.classList.toggle('active', panMode);
+            document.getElementById('canvasArea').style.cursor = panMode ? 'grab' : 'default';
+            showToast(panMode ? 'Rączka: przeciąganie przesuwa planszę (H — wyłącz)' : 'Zaznaczanie: przeciągnij po pustym miejscu, aby zaznaczyć bloki', 'info');
         }
 
         function selectSiblingBlock(dir) {
@@ -4283,7 +4471,7 @@
                 clearNoteSelection();
                 renderInfoPanel();
             } else if (selectedNodeIdx !== null) {
-                selectedNodeIdx = null;
+                clearBlockSelection();
                 document.querySelectorAll('.dbb-card.selected').forEach(c => c.classList.remove('selected'));
                 renderInfoPanel();
             } else {
@@ -4314,6 +4502,30 @@
             if (!body) return;
             const note = (currentWorkspace && selectedNoteIdx !== null && currentWorkspace.notes) ? currentWorkspace.notes[selectedNoteIdx] : null;
             if (note) { renderNotePanel(body, mainBtn, note); return; }
+            if (currentWorkspace && selectedSet.size > 1) {
+                const idxs = [...selectedSet].filter(i => currentWorkspace.blocks[i]);
+                const n = idxs.length;
+                const allLocked = idxs.every(i => currentWorkspace.blocks[i].lock);
+                if (mainBtn) mainBtn.innerHTML = `Odznacz <small>${n}/${currentWorkspace.blocks.length}</small>`;
+                body.innerHTML = `
+                    <div class="info-section-title">Zaznaczono ${n} ${plBlocks(n)}</div>
+                    <div class="info-tip"><b>⇄</b><span>Przeciągnij jeden z zaznaczonych bloków, aby przesunąć wszystkie naraz.</span></div>
+                    <div class="info-tip"><b>⌫</b><span>Delete usuwa zaznaczone, Ctrl+D je duplikuje (razem z kablami między nimi), Esc odznacza.</span></div>
+                    <div class="info-tip"><b>＋</b><span>Ctrl lub Shift + klik dodaje albo odejmuje bloki. Ctrl+A zaznacza wszystkie.</span></div>
+                    <div class="info-actions">
+                        <button class="info-btn danger" title="Usuń zaznaczone (Delete)" data-act="delete-all"><svg class="ico"><use href="#i-trash"/></svg></button>
+                        <button class="info-btn" title="Duplikuj zaznaczone (Ctrl+D)" data-act="duplicate-all"><svg class="ico"><use href="#i-copy"/></svg></button>
+                        <button class="info-btn ${allLocked ? 'active' : ''}" title="${allLocked ? 'Odblokuj zaznaczone' : 'Zablokuj zaznaczone'}" data-act="lock-all"><svg class="ico"><use href="#i-${allLocked ? 'lock' : 'unlock'}"/></svg></button>
+                    </div>`;
+                body.querySelector('[data-act="delete-all"]').onclick = () => deleteSelectedBlocks();
+                body.querySelector('[data-act="duplicate-all"]').onclick = () => duplicateSelectedBlocks();
+                body.querySelector('[data-act="lock-all"]').onclick = () => {
+                    idxs.forEach(i => { currentWorkspace.blocks[i].lock = !allLocked; });
+                    renderCanvas();
+                    recordHistory(allLocked ? 'Odblokowano bloki' : 'Zablokowano bloki');
+                };
+                return;
+            }
             const block = (currentWorkspace && selectedNodeIdx !== null) ? currentWorkspace.blocks[selectedNodeIdx] : null;
             if (!block) {
                 if (mainBtn) mainBtn.textContent = 'Pokaż wszystko';
@@ -4321,7 +4533,8 @@
                     <div class="info-section-title">Szybki start</div>
                     <div class="info-tip"><b>1</b><span>Kliknij prawym przyciskiem na planszy, żeby dodać blok.</span></div>
                     <div class="info-tip"><b>2</b><span>Przeciągnij z wyjścia do wejścia, by połączyć bloki. Kliknięcie w kabel go usuwa.</span></div>
-                    <div class="info-tip"><b>3</b><span>Zaznacz blok, a tutaj zobaczysz jego właściwości.</span></div>`;
+                    <div class="info-tip"><b>3</b><span>Zaznacz blok, a tutaj zobaczysz jego właściwości.</span></div>
+                    <div class="info-tip"><b>4</b><span>Kilka bloków naraz: przeciągnij prostokąt po pustym miejscu albo Ctrl+klik; Ctrl+A zaznacza wszystkie. Planszę przesuwasz środkowym przyciskiem myszy, Alt + przeciąganiem lub rączką ✋ (H).</span></div>`;
                 return;
             }
             const def = getBlockFullDef(block);
@@ -4389,7 +4602,7 @@
 
         function selectNote(nIdx) {
             selectedNoteIdx = nIdx;
-            selectedNodeIdx = null;
+            clearBlockSelection();
             document.querySelectorAll('.dbb-card.selected').forEach(c => c.classList.remove('selected'));
             document.querySelectorAll('.dbb-note').forEach(n => n.classList.toggle('selected', n.id === `note_${nIdx}`));
             if (document.getElementById('rightProjectsPanel')?.classList.contains('collapsed')) toggleRightPanel(true);
@@ -5576,7 +5789,7 @@
             }
 
             currentWorkspace = ws;
-            selectedNodeIdx = null;
+            clearBlockSelection();
             selectedNoteIdx = null;
             initWorkspaceHistory();
 
@@ -5870,6 +6083,7 @@
 
         // ═══════ CANVAS RENDERING ═══════
         function renderCanvas() {
+            reconcileSelection();
             const container = document.getElementById('blocksContainer');
             container.innerHTML = '';
 
@@ -5943,7 +6157,7 @@
                     const catIcon = getCategoryIcon(catSlug);
 
                     const card = document.createElement('div');
-                    card.className = `dbb-card ${selectedNodeIdx === idx ? 'selected' : ''} ${block.collapsed ? 'collapsed' : ''}`;
+                    card.className = `dbb-card ${selectedSet.has(idx) ? 'selected' : ''} ${block.collapsed ? 'collapsed' : ''}`;
                     card.id = `block_${idx}`;
                     card.dataset.cat = catSlug;
                     card.style.left = `${block.x}px`;
@@ -6392,10 +6606,24 @@
                         if (cScroll && cScroll.scrollHeight > cScroll.clientHeight && e.clientX >= cScroll.getBoundingClientRect().right - 14) return;
                         e.stopPropagation();
 
-                        selectedNodeIdx = idx;
+                        // Jak w Eksploratorze: Ctrl+klik przełącza blok, Shift+klik dodaje, zwykły klik zaznacza jeden.
+                        // Klik w blok, który jest już w zaznaczeniu, zachowuje grupę (żeby dało się ją przeciągnąć).
+                        pendingCollapse = null;
+                        dragMoved = false;
+                        dragStart = null;
+                        if (e.ctrlKey || e.metaKey) {
+                            toggleBlockSelection(idx);
+                            if (!selectedSet.has(idx)) { renderInfoPanel(); return; }
+                        } else if (e.shiftKey) {
+                            if (!selectedSet.has(idx)) setBlockSelection([...selectedSet, idx], idx);
+                            else selectedNodeIdx = idx;
+                        } else if (selectedSet.has(idx) && selectedSet.size > 1) {
+                            selectedNodeIdx = idx;
+                            pendingCollapse = idx;
+                        } else {
+                            setBlockSelection([idx], idx);
+                        }
                         clearNoteSelection();
-                        document.querySelectorAll('.dbb-card').forEach(c => c.classList.remove('selected'));
-                        card.classList.add('selected');
                         renderInfoPanel();
                         if (block.lock) return;
 
@@ -6404,6 +6632,15 @@
                         dragBlockIdx = idx;
                         dragOffset.x = ((e.clientX - areaRect.left - panX) / zoomScale) - block.x;
                         dragOffset.y = ((e.clientY - areaRect.top - panY) / zoomScale) - block.y;
+                        // Przeciąganie grupy: zapamiętujemy punkt startowy każdego zaznaczonego (niezablokowanego) bloku
+                        dragGroup = null;
+                        if (selectedSet.size > 1 && selectedSet.has(idx)) {
+                            dragGroup = {
+                                start: { x: block.x, y: block.y },
+                                items: [...selectedSet].filter(i => i !== idx && currentWorkspace.blocks[i] && !currentWorkspace.blocks[i].lock)
+                                    .map(i => ({ i, x: currentWorkspace.blocks[i].x, y: currentWorkspace.blocks[i].y }))
+                            };
+                        }
                     });
 
                     container.appendChild(card);
@@ -7223,17 +7460,25 @@
                     cancelConnectingWire();
                     return;
                 }
-                if (e.button === 0 && !isDraggingBlock && !isResizingBlock && !connectingWire) {
-                    if ((selectedNodeIdx !== null || selectedNoteIdx !== null) && !e.target.closest('.dbb-card') && !e.target.closest('.dbb-note-header')) {
-                        selectedNodeIdx = null;
-                        clearNoteSelection();
-                        document.querySelectorAll('.dbb-card.selected').forEach(c => c.classList.remove('selected'));
-                        renderInfoPanel();
+                if (e.button === 1) e.preventDefault();   // środkowy przycisk: bez autoprzewijania systemowego
+                if ((e.button === 0 || e.button === 1) && !isDraggingBlock && !isResizingBlock && !connectingWire) {
+                    if (e.target.closest('.zoom-controls, .minimap, .console-toggle, button, input, select, textarea')) return;
+                    const onItem = e.target.closest('.dbb-card') || e.target.closest('.dbb-note-header');
+                    // Przesuwanie planszy: środkowy przycisk, Alt + lewy albo tryb rączki. Zwykłe przeciąganie po pustym miejscu = zaznaczanie.
+                    const wantsPan = e.button === 1 || e.altKey || panMode;
+                    if (wantsPan) {
+                        if (e.button === 0 && !onItem && (selectedNodeIdx !== null || selectedNoteIdx !== null) && !(e.ctrlKey || e.metaKey || e.shiftKey)) {
+                            clearBlockSelection();
+                            clearNoteSelection();
+                            renderInfoPanel();
+                        }
+                        isPanning = true;
+                        startPan.x = e.clientX - panX;
+                        startPan.y = e.clientY - panY;
+                        canvasArea.style.cursor = 'grabbing';
+                    } else if (!onItem) {
+                        startMarquee(e, e.ctrlKey || e.metaKey || e.shiftKey);
                     }
-                    isPanning = true;
-                    startPan.x = e.clientX - panX;
-                    startPan.y = e.clientY - panY;
-                    canvasArea.style.cursor = 'grabbing';
                 }
             });
 
@@ -7241,7 +7486,7 @@
             let lastMouseEvent = null;
 
             window.addEventListener('mousemove', (e) => {
-                if (!isPanning && !isResizingBlock && !isDraggingBlock && !connectingWire) return;
+                if (!isPanning && !isMarquee && !isResizingBlock && !isDraggingBlock && !connectingWire) return;
                 lastMouseEvent = e;
                 if (!isMoveScheduled) {
                     isMoveScheduled = true;
@@ -7250,7 +7495,9 @@
                         if (!lastMouseEvent) return;
                         const ev = lastMouseEvent;
 
-                        if (isPanning) {
+                        if (isMarquee) {
+                            updateMarquee(ev.clientX, ev.clientY);
+                        } else if (isPanning) {
                             panX = ev.clientX - startPan.x;
                             panY = ev.clientY - startPan.y;
                             canvasContent.style.transform = `translate3d(${panX}px, ${panY}px, 0) scale(${zoomScale})`;
@@ -7287,6 +7534,20 @@
                             if (el) {
                                 el.style.left = `${block.x}px`;
                                 el.style.top = `${block.y}px`;
+                            }
+                            if (dragGroup) {
+                                const gx = block.x - dragGroup.start.x, gy = block.y - dragGroup.start.y;
+                                if (gx !== 0 || gy !== 0) dragMoved = true;
+                                dragGroup.items.forEach(it => {
+                                    const gb = currentWorkspace.blocks[it.i];
+                                    gb.x = it.x + gx;
+                                    gb.y = it.y + gy;
+                                    const gel = document.getElementById(`block_${it.i}`);
+                                    if (gel) { gel.style.left = `${gb.x}px`; gel.style.top = `${gb.y}px`; }
+                                });
+                                dragGroup.items.forEach(it => updateWiresForBlock(it.i));
+                            } else if (dragStartDelta(block)) {
+                                dragMoved = true;
                             }
                             updateWiresForBlock(dragBlockIdx);
                         } else if (connectingWire) {
@@ -7326,8 +7587,9 @@
             });
 
             window.addEventListener('mouseup', (e) => {
+                endMarquee();
                 if (isPanning) {
-                    canvasArea.style.cursor = 'default';
+                    canvasArea.style.cursor = panMode ? 'grab' : 'default';
                 }
                 const wasDraggingOrResizing = isDraggingBlock || isResizingBlock;
                 const prevDragIdx = dragBlockIdx;
@@ -7374,8 +7636,15 @@
                 if (wasDraggingOrResizing) {
                     updateMinimap();
                     if (prevDragIdx !== null) {
-                        recordHistory('Przesunięto blok');
+                        const groupSize = dragGroup ? dragGroup.items.length + 1 : 1;
+                        recordHistory(groupSize > 1 ? `Przesunięto ${groupSize} ${plBlocks(groupSize)}` : 'Przesunięto blok');
                     }
+                    // Klik (bez ruchu) w blok z zaznaczonej grupy zostawia tylko ten blok — jak w Eksploratorze
+                    if (!dragMoved && pendingCollapse !== null && selectedSet.size > 1) {
+                        setBlockSelection([pendingCollapse], pendingCollapse);
+                    }
+                    pendingCollapse = null;
+                    dragGroup = null;
                     renderInfoPanel();
                 }
             });
@@ -7616,8 +7885,8 @@
             if (selectedNodeIdx !== null && currentWorkspace && currentWorkspace.blocks && currentWorkspace.blocks[selectedNodeIdx]) {
                 const dupItem = document.createElement('div');
                 dupItem.className = 'context-item';
-                dupItem.innerHTML = `<span class="context-item-dot" style="background:#00cec9"></span> <b>📋 Duplikuj blok (Ctrl+D)</b>`;
-                dupItem.onclick = () => { duplicateSelectedBlock(); hideContextMenu(); };
+                dupItem.innerHTML = `<span class="context-item-dot" style="background:#00cec9"></span> <b>📋 ${selectedSet.size > 1 ? `Duplikuj ${selectedSet.size} ${plBlocks(selectedSet.size)}` : 'Duplikuj blok'} (Ctrl+D)</b>`;
+                dupItem.onclick = () => { duplicateSelectedBlocks(); hideContextMenu(); };
                 list.appendChild(dupItem);
             }
 
@@ -7787,13 +8056,8 @@
             const newIdx = currentWorkspace.blocks.length - 1;
             renderCanvas();
 
-            selectedNodeIdx = newIdx;
-            const card = document.getElementById(`block_${newIdx}`);
-            if (card) {
-                document.querySelectorAll('.dbb-card').forEach(c => c.classList.remove('selected'));
-                card.classList.add('selected');
-                renderInfoPanel();
-            }
+            setBlockSelection([newIdx], newIdx);
+            renderInfoPanel();
             recordHistory(`Zduplikowano: ${blockDef.name}`);
             showToast(`Zduplikowano: ${blockDef.name} (Ctrl+D)`, 'info');
         }
@@ -7886,7 +8150,7 @@
                 const ids = new Set(removed ? collectWireIds([Object.values(removed.inputs || {}), Object.values(removed.outputs || {})]) : []);
                 currentWorkspace.blocks.splice(index, 1);
                 removeWireIdsFromWorkspace(currentWorkspace, ids);
-                selectedNodeIdx = null;
+                clearBlockSelection();
                 renderCanvas();
                 recordHistory('Usunięto blok');
                 showToast(`Usunięto blok`, 'info');
@@ -7978,8 +8242,19 @@
                 if (e.ctrlKey && (e.key === 'd' || e.key === 'D')) {
                     if (!typing && selectedNodeIdx !== null) {
                         e.preventDefault();
-                        duplicateSelectedBlock();
+                        duplicateSelectedBlocks();
                     }
+                }
+
+                // Ctrl+A → zaznacz wszystkie bloki
+                if (e.ctrlKey && (e.key === 'a' || e.key === 'A') && !typing) {
+                    e.preventDefault();
+                    selectAllBlocks();
+                }
+
+                // H → rączka (przesuwanie planszy lewym przyciskiem) / zaznaczanie
+                if ((e.key === 'h' || e.key === 'H') && !e.ctrlKey && !e.altKey && !e.metaKey && !typing) {
+                    togglePanMode();
                 }
 
                 // Space → open block search at mouse / center
@@ -7999,7 +8274,8 @@
                 // Delete / Backspace → remove selected block
                 if ((e.key === 'Delete' || e.key === 'Backspace') && selectedNodeIdx !== null && !typing) {
                     e.preventDefault();
-                    deleteBlock(e, selectedNodeIdx);
+                    if (selectedSet.size > 1) deleteSelectedBlocks();
+                    else deleteBlock(e, selectedNodeIdx);
                 }
 
                 // Escape → deselect / close context menu / quick connect
@@ -8010,7 +8286,7 @@
                         return;
                     }
                     hideContextMenu();
-                    selectedNodeIdx = null;
+                    clearBlockSelection();
                     document.querySelectorAll('.dbb-card').forEach(c => c.classList.remove('selected'));
                 }
 
@@ -8384,7 +8660,7 @@
                     document.getElementById('botToken').value = '';
                 }
                 currentWorkspace = null;
-                selectedNodeIdx = null;
+                clearBlockSelection();
                 installedBlocks = await ipcRenderer.invoke('get-installed-blocks');
                 rawWorkspacesData = await ipcRenderer.invoke('load-workspaces');
                 renderWorkspacesTree();
