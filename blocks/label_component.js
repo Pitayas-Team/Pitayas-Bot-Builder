@@ -11,7 +11,7 @@ module.exports = {
         if (!data?.options?.show_inputs) return [{
                 id: "modal_component",
                 name: "Modal Component",
-                description: "The Modal Component to add. This can be any Type of Select Menu, Text Input or File Upload component.",
+                description: "The Modal Component to add. This can be any Select Menu, Text Input, File Upload, Radio Group, Checkbox Group or Checkbox component.",
                 types: ["object", "unspecified"],
                 required: true
             }];
@@ -38,7 +38,7 @@ module.exports = {
             {
                 id: "modal_component",
                 name: "Modal Component",
-                description: "The Modal Component to add. This can be any Type of Select Menu, Text Input or File Upload component.",
+                description: "The Modal Component to add. This can be any Select Menu, Text Input, File Upload, Radio Group, Checkbox Group or Checkbox component.",
                 types: ["object", "unspecified"],
                 required: true
             }
@@ -136,8 +136,17 @@ module.exports = {
             case 19:
                 labelcomponent.setFileUploadComponent(finalModalComponent);
                 break;
+            case 21:
+                labelcomponent.setRadioGroupComponent(finalModalComponent);
+                break;
+            case 22:
+                labelcomponent.setCheckboxGroupComponent(finalModalComponent);
+                break;
+            case 23:
+                labelcomponent.setCheckboxComponent(finalModalComponent);
+                break;
             default:
-                this.end(new Error("The provided component is not a Select Menu or Text Input!"), true, false);
+                this.end(new Error("The provided component can't be used in a Label (supported: Select Menus, Text Input, File Upload, Radio Group, Checkbox Group, Checkbox)!"), true, false);
                 return;
         }
 

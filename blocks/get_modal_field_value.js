@@ -47,6 +47,9 @@ module.exports = {
                 roleselect: "Selected Roles <Roles>",
                 mentionableselect: "Selected Mentionables <Object<Users/Roles/Members>>",
                 channelselect: "Selected Channels <Channels>",
+                radiogroup: "Selected Radio Option <Text>",
+                checkboxgroup: "Ticked Checkbox Options <Texts>",
+                checkbox: "Checkbox Ticked? <Boolean>",
             },
         },
     ],
@@ -61,6 +64,9 @@ module.exports = {
             roleselect: "Role Select Menu",
             mentionableselect: "Mentionable Select Menu",
             channelselect: "Channel Select Menu",
+            radiogroup: "Radio Group",
+            checkboxgroup: "Checkbox Group",
+            checkbox: "Checkbox",
         };
         const name = names[type] || "Text Input Value";
         const outputs = [
@@ -74,7 +80,7 @@ module.exports = {
                 id: "result",
                 name: name,
                 description: `The Obtained ${name}.`,
-                types: type == "textinput" ? ["text", "unspecified"] : ["list", "unspecified"],
+                types: (type == "textinput" || type == "radiogroup") ? ["text", "unspecified"] : type == "checkbox" ? ["boolean", "unspecified"] : ["list", "unspecified"],
             },
         ];
 
@@ -148,6 +154,15 @@ module.exports = {
                 case "channelselect":
                     values = interaction.fields.getSelectedChannels(fieldname, false)?.toJSON();
                     field = values ? Array.from(values.values()) : null;
+                    break;
+                case "radiogroup":
+                    field = interaction.fields.getRadioGroup(fieldname, false);
+                    break;
+                case "checkboxgroup":
+                    field = interaction.fields.getCheckboxGroup(fieldname);
+                    break;
+                case "checkbox":
+                    field = interaction.fields.getCheckbox(fieldname);
                     break;
                 default:
                     field = interaction.fields.getField(fieldname);
