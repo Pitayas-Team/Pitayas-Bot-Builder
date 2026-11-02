@@ -53,7 +53,8 @@ const core = require('./core').create({
     id: 'bot-builder',
     folder: 'Bot-Builder',
     name: 'PBB',
-    repo: 'MangoLabz/Pitayas-Bot-Builder',
+    repo: 'Pitayas-Team/Pitayas-Bot-Builder',
+    branch: 'pitaya-rebrand',
     appDir: __dirname,
     legacy,
 });

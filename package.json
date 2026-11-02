@@ -22,7 +22,7 @@
     "name": "Pitayas",
     "email": "inbox@rakunek.com"
   },
-  "homepage": "https://github.com/MangoLabz/Pitayas-Bot-Builder",
+  "homepage": "https://github.com/Pitayas-Team/Pitayas-Bot-Builder",
   "desktopName": "pitaya-bot-builder.desktop",
   "build": {
     "appId": "com.pitayas.pbb",
