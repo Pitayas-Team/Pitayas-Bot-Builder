@@ -527,6 +527,11 @@
             display: inline-block;
             align-self: flex-end;
         }
+        .dbb-ports-col.inputs .dbb-add-port-btn {
+            align-self: flex-start;
+            text-align: left;
+            margin-top: 2px;
+        }
         .dbb-add-port-btn:hover {
             background: rgba(88, 101, 242, 0.25);
             border-color: #5865f2;
@@ -539,6 +544,10 @@
             cursor: pointer;
             opacity: 0.6;
             transition: opacity 120ms ease;
+        }
+        .dbb-ports-col.inputs .port-remove-btn {
+            margin-left: 4px;
+            margin-right: 0;
         }
         .port-remove-btn:hover {
             opacity: 1;
@@ -3124,7 +3133,9 @@
         .port-num { color: var(--m-text-3); font-weight: 600; font-size: 9px; font-family: 'JetBrains Mono', monospace; }
         .dbb-add-port-btn { font-size: 10px !important; color: var(--m-accent) !important; background: none !important; border: none !important; padding: 2px 4px !important; opacity: 0.8; }
         .dbb-add-port-btn:hover { opacity: 1; }
+        .dbb-ports-col.inputs .dbb-add-port-btn { align-self: flex-start !important; text-align: left !important; }
         .port-remove-btn { font-size: 8px; color: var(--m-text-3); }
+        .dbb-ports-col.inputs .port-remove-btn { margin-left: 3px !important; margin-right: 0 !important; }
         body.is-wiring .dbb-ports-col.inputs .port-item { border: none !important; background: rgba(255, 79, 166,0.1) !important; }
         .port-item.wire-target-hover { background: rgba(255, 79, 166,0.25) !important; box-shadow: none !important; }
 
@@ -6166,7 +6177,12 @@
                     card.style.width = block.width ? `${Math.max(160, block.width)}px` : '260px';
 
                     // Oblicz wymagana wysokość na podstawie liczby wejść, wyjść i pól options
-                    const countIn = (blockDef && blockDef.inputs) ? blockDef.inputs.length : Object.keys(block.inputs || {}).length;
+                    let countIn = (blockDef && blockDef.inputs) ? blockDef.inputs.length : Object.keys(block.inputs || {}).length;
+                    if (block.inputs) {
+                        Object.values(block.inputs).forEach(v => {
+                            if (Array.isArray(v) && v.length > 1) countIn += (v.length - 1);
+                        });
+                    }
                     let countOut = (blockDef && blockDef.outputs) ? blockDef.outputs.length : Object.keys(block.outputs || {}).length;
                     if (block.outputs) {
                         Object.values(block.outputs).forEach(v => {
@@ -6408,64 +6424,119 @@
                     // Inputs
                     const leftPorts = document.createElement('div');
                     leftPorts.className = 'dbb-ports-col inputs';
-                    const inputKeys = new Set(Object.keys(block.inputs || {}));
-                    if (blockDef && blockDef.inputs) blockDef.inputs.forEach(i => inputKeys.add(i.id));
+                    const inputKeys = [];
+                    if (blockDef && Array.isArray(blockDef.inputs)) {
+                        blockDef.inputs.forEach(i => inputKeys.push(i.id));
+                    }
+                    if (block.inputs) {
+                        Object.keys(block.inputs).forEach(k => {
+                            if (!inputKeys.includes(k)) inputKeys.push(k);
+                        });
+                    }
 
-                    const expandedInputs = [];
                     inputKeys.forEach(key => {
                         const inDef = (blockDef && Array.isArray(blockDef.inputs)) ? blockDef.inputs.find(i => i.id === key) : null;
                         const saved = block.inputs ? block.inputs[key] : undefined;
-                        if ((inDef && inDef.multiInput) || (Array.isArray(saved) && saved.length > 1)) {
+                        const isMulti = Boolean((inDef && inDef.multiInput) || Array.isArray(saved));
+                        const isAction = key.toLowerCase().includes('action');
+
+                        if (isMulti) {
                             const arr = Array.isArray(saved) ? saved : (saved ? [saved] : []);
                             const used = arr.filter(Boolean).length;
-                            const count = Math.max(arr.length, used) + 1;
-                            for (let k = 0; k < count; k++) expandedInputs.push({ key, sub: k, multi: true });
-                        } else {
-                            expandedInputs.push({ key, sub: 0, multi: false });
-                        }
-                    });
+                            const maxLimit = (inDef && inDef.max) ? inDef.max : 25;
+                            let count = Math.max(arr.length, used + 1);
+                            if (count > maxLimit) count = maxLimit;
+                            if (count < 1) count = 1;
 
-                    expandedInputs.forEach(({ key, sub, multi }) => {
-                        const portWrapper = buildPort(key, idx, false, blockDef, sub, multi);
-                        {
-                            const saved = block.inputs ? block.inputs[key] : undefined;
-                            const wid = Array.isArray(saved) ? saved[sub] : (sub === 0 ? saved : undefined);
+                            for (let sub = 0; sub < count; sub++) {
+                                const hasRemovableSlot = sub < arr.length;
+                                const portWrapper = buildPort(key, idx, false, blockDef, sub, true, hasRemovableSlot);
+                                const wid = Array.isArray(saved) ? saved[sub] : (sub === 0 ? saved : undefined);
+                                if (typeof wid === 'string' && wid && !wsOutputIds.has(wid)) {
+                                    portWrapper.classList.add('dangling');
+                                    portWrapper.title = 'Zerwany kabel — blok źródłowy został usunięty. Podłącz wejście ponownie albo użyj „Usuń zerwane kable”.';
+                                }
+
+                                const handleConnectFinish = (e) => {
+                                    if (e.target.classList.contains('port-remove-btn')) return;
+                                    if (connectingWire && connectingWire.type === 'output') {
+                                        e.stopPropagation();
+                                        finishConnectingWire(connectingWire.blockIdx, connectingWire.portKey, idx, key, connectingWire.outSubIdx || 0, sub);
+                                    }
+                                };
+                                portWrapper.addEventListener('mouseup', handleConnectFinish);
+                                portWrapper.addEventListener('click', handleConnectFinish);
+
+                                const handleStartIn = (e) => {
+                                    if (e.target.classList.contains('port-remove-btn')) return;
+                                    if (e.button !== 0) return;
+                                    e.stopPropagation();
+                                    if (connectingWire && connectingWire.type === 'input' && connectingWire.blockIdx === idx && connectingWire.portKey === key && connectingWire.inSubIdx === sub) {
+                                        cancelConnectingWire();
+                                        return;
+                                    }
+                                    startConnectingWireFromInput(idx, key, isAction, sub, portWrapper);
+                                };
+                                portWrapper.addEventListener('mousedown', handleStartIn);
+
+                                portWrapper.addEventListener('mouseenter', () => {
+                                    if (connectingWire) portWrapper.classList.add('wire-target-hover');
+                                });
+                                portWrapper.addEventListener('mouseleave', () => {
+                                    portWrapper.classList.remove('wire-target-hover');
+                                });
+
+                                leftPorts.appendChild(portWrapper);
+                            }
+
+                            if (count < maxLimit) {
+                                const addPortBtn = document.createElement('div');
+                                addPortBtn.className = 'dbb-add-port-btn';
+                                addPortBtn.title = `Dodaj kolejne wejście (${inDef?.name || key})`;
+                                addPortBtn.innerHTML = `<span>＋ Dodaj ${escapeHTML(inDef?.name || 'wejście')}</span>`;
+                                addPortBtn.onclick = (e) => {
+                                    e.stopPropagation();
+                                    addMultiInputPort(idx, key);
+                                };
+                                leftPorts.appendChild(addPortBtn);
+                            }
+                        } else {
+                            const portWrapper = buildPort(key, idx, false, blockDef, 0, false, false);
+                            const wid = saved;
                             if (typeof wid === 'string' && wid && !wsOutputIds.has(wid)) {
                                 portWrapper.classList.add('dangling');
                                 portWrapper.title = 'Zerwany kabel — blok źródłowy został usunięty. Podłącz wejście ponownie albo użyj „Usuń zerwane kable”.';
                             }
-                        }
 
-                        // Kończenie połączenia: działa ZARÓWNO na puszczenie (mouseup/drag) jak i na drugie kliknięcie (click)
-                        const handleConnectFinish = (e) => {
-                            if (connectingWire && connectingWire.type === 'output') {
+                            const handleConnectFinish = (e) => {
+                                if (connectingWire && connectingWire.type === 'output') {
+                                    e.stopPropagation();
+                                    finishConnectingWire(connectingWire.blockIdx, connectingWire.portKey, idx, key, connectingWire.outSubIdx || 0, null);
+                                }
+                            };
+                            portWrapper.addEventListener('mouseup', handleConnectFinish);
+                            portWrapper.addEventListener('click', handleConnectFinish);
+
+                            const handleStartIn = (e) => {
+                                if (e.button !== 0) return;
                                 e.stopPropagation();
-                                finishConnectingWire(connectingWire.blockIdx, connectingWire.portKey, idx, key, connectingWire.outSubIdx || 0, multi ? sub : null);
-                            }
-                        };
-                        portWrapper.addEventListener('mouseup', handleConnectFinish);
-                        portWrapper.addEventListener('click', handleConnectFinish);
+                                if (connectingWire && connectingWire.type === 'input' && connectingWire.blockIdx === idx && connectingWire.portKey === key && connectingWire.inSubIdx === 0) {
+                                    cancelConnectingWire();
+                                    return;
+                                }
+                                startConnectingWireFromInput(idx, key, isAction, 0, portWrapper);
+                            };
+                            portWrapper.addEventListener('mousedown', handleStartIn);
 
-                        // START ŁĄCZENIA OD WEJŚCIA (DWUKIERUNKOWE)
-                        const handleStartIn = (e) => {
-                            if (e.button !== 0) return;
-                            e.stopPropagation();
-                            if (connectingWire && connectingWire.type === 'input' && connectingWire.blockIdx === idx && connectingWire.portKey === key && connectingWire.inSubIdx === sub) {
-                                cancelConnectingWire();
-                                return;
-                            }
-                            startConnectingWireFromInput(idx, key, isAction, sub, portWrapper);
-                        };
-                        portWrapper.addEventListener('mousedown', handleStartIn);
+                            portWrapper.addEventListener('mouseenter', () => {
+                                if (connectingWire) portWrapper.classList.add('wire-target-hover');
+                            });
+                            portWrapper.addEventListener('mouseleave', () => {
+                                portWrapper.classList.remove('wire-target-hover');
+                            });
 
-                        portWrapper.addEventListener('mouseenter', () => {
-                            if (connectingWire) portWrapper.classList.add('wire-target-hover');
-                        });
-                        portWrapper.addEventListener('mouseleave', () => {
-                            portWrapper.classList.remove('wire-target-hover');
-                        });
-
-                        leftPorts.appendChild(portWrapper);
+                            leftPorts.appendChild(portWrapper);
+                        }
                     });
 
                     // Outputs
@@ -6547,7 +6618,7 @@
                         }
                     });
 
-                    if (inputKeys.size === 0) leftPorts.style.display = 'none';
+                    if (inputKeys.length === 0) leftPorts.style.display = 'none';
                     if (allOutKeys.size === 0) rightPorts.style.display = 'none';
                     if (optList.length === 0) centerScroll.style.display = 'none';
 
@@ -6681,6 +6752,84 @@
         }
 
         
+        // ═══════ OBSŁUGA MULTI-INPUT (DODAWANIE / USUWANIE WEJŚĆ) ═══════
+        function addMultiInputPort(blockIdx, inKey) {
+            if (!currentWorkspace || !currentWorkspace.blocks[blockIdx]) return;
+            const block = currentWorkspace.blocks[blockIdx];
+            if (!block.inputs) block.inputs = {};
+
+            const blockDef = getBlockFullDef(block);
+            const inDef = (blockDef && Array.isArray(blockDef.inputs)) ? blockDef.inputs.find(i => i.id === inKey) : null;
+            const maxLimit = (inDef && inDef.max) ? inDef.max : 25;
+
+            let arr = block.inputs[inKey];
+            if (!Array.isArray(arr)) {
+                arr = arr ? [arr] : [];
+            } else {
+                arr = [...arr];
+            }
+
+            if (arr.length >= maxLimit) {
+                showToast(`Osiągnięto limit ${maxLimit} wejść dla ${inDef?.name || inKey}`, 'warning');
+                return;
+            }
+
+            arr.push("");
+            block.inputs[inKey] = arr;
+
+            if (block.height) {
+                block.height = Math.round(block.height + 26);
+            }
+
+            renderCanvas();
+            debouncedSaveToDisk();
+            showToast(`Dodano wejście ${inDef?.name || inKey} #${arr.length}`, 'success');
+        }
+
+        function removeMultiInputPort(blockIdx, inKey, inSubIdx) {
+            if (!currentWorkspace || !currentWorkspace.blocks[blockIdx]) return;
+            const block = currentWorkspace.blocks[blockIdx];
+            if (!block.inputs) return;
+
+            let arr = block.inputs[inKey];
+            if (!Array.isArray(arr)) {
+                arr = arr ? [arr] : [];
+            } else {
+                arr = [...arr];
+            }
+
+            const removedWireId = arr[inSubIdx];
+            if (removedWireId && typeof removedWireId === 'string') {
+                currentWorkspace.blocks.forEach(b => {
+                    if (b.outputs) {
+                        Object.keys(b.outputs).forEach(outK => {
+                            if (Array.isArray(b.outputs[outK])) {
+                                b.outputs[outK] = b.outputs[outK].map(item => {
+                                    if (Array.isArray(item)) return item.filter(w => w !== removedWireId);
+                                    return item === removedWireId ? null : item;
+                                }).filter(Boolean);
+                            } else if (b.outputs[outK] === removedWireId) {
+                                delete b.outputs[outK];
+                            }
+                        });
+                    }
+                });
+            }
+
+            if (inSubIdx < arr.length) {
+                arr.splice(inSubIdx, 1);
+            }
+            if (arr.length === 0) {
+                delete block.inputs[inKey];
+            } else {
+                block.inputs[inKey] = arr;
+            }
+
+            renderCanvas();
+            debouncedSaveToDisk();
+            showToast(`Usunięto wejście #${inSubIdx + 1}`, 'info');
+        }
+
         // ═══════ OBSŁUGA MULTI-OUTPUT (DODAWANIE / USUWANIE WYJŚĆ I PÓL) ═══════
         function addMultiOutputPort(blockIdx, outKey) {
             if (!currentWorkspace || !currentWorkspace.blocks[blockIdx]) return;
@@ -6760,7 +6909,7 @@
             showToast(`Usunięto wyjście #${outSubIdx + 1}`, 'info');
         }
 
-        function buildPort(key, blockIdx, isOutput, blockDef, outSubIdx = 0, showSubIndex = false) {
+        function buildPort(key, blockIdx, isOutput, blockDef, outSubIdx = 0, showSubIndex = false, showRemoveBtn = false) {
             const portType = getPortType(blockDef, key, isOutput);
             const isAction = portType === 'action';
             const colorClass = isAction ? (isOutput ? 'action-out' : 'action') : `t-${portType}`;
@@ -6793,16 +6942,19 @@
 
             if (isOutput) {
                 const displayName = showSubIndex ? `<span class="port-num">#${outSubIdx + 1}</span> ${portName}` : portName;
-                const removeBtnHtml = showSubIndex ? `<span class="port-remove-btn" title="Usuń ten port" onclick="event.stopPropagation(); removeMultiOutputPort(${blockIdx}, '${key}', ${outSubIdx})">✕</span>` : '';
+                const removeBtnHtml = (showSubIndex || showRemoveBtn) ? `<span class="port-remove-btn" title="Usuń ten port" onclick="event.stopPropagation(); removeMultiOutputPort(${blockIdx}, '${key}', ${outSubIdx})">✕</span>` : '';
                 portWrapper.innerHTML = `
                     ${removeBtnHtml}
                     <span>${displayName}</span>
                     <span class="port-dot ${colorClass}"></span>
                 `;
             } else {
+                const displayName = `${portName}${showSubIndex ? ` <span class="port-num">#${outSubIdx + 1}</span>` : ''}`;
+                const removeBtnHtml = showRemoveBtn ? `<span class="port-remove-btn" title="Usuń to wejście" onclick="event.stopPropagation(); removeMultiInputPort(${blockIdx}, '${key}', ${outSubIdx})">✕</span>` : '';
                 portWrapper.innerHTML = `
                     <span class="port-dot ${colorClass}"></span>
-                    <span>${portName}${showSubIndex ? ` <span class="port-num">#${outSubIdx + 1}</span>` : ''}</span>
+                    <span>${displayName}</span>
+                    ${removeBtnHtml}
                 `;
             }
 
@@ -7022,7 +7174,7 @@
                     delete tBlock.inputs[inKey];
                 }
             }
-            drawWires();
+            renderCanvas();
             updateStats();
             recordHistory('Usunięto połączenie');
             debouncedSaveToDisk();
@@ -7091,7 +7243,7 @@
             }
 
             if (removedCount > 0) {
-                drawWires();
+                renderCanvas();
                 updateStats();
                 recordHistory('Odłączono kable');
                 showToast(`Odłączono ${removedCount} kabel(-li)`, 'info');
@@ -7398,6 +7550,10 @@
             const targetBlock = currentWorkspace.blocks[targetIdx];
             if (!sourceBlock || !targetBlock) return;
 
+            const targetDef = getBlockFullDef(targetBlock);
+            const inDef = (targetDef && Array.isArray(targetDef.inputs)) ? targetDef.inputs.find(i => i.id === inKey) : null;
+            const isTargetMulti = Boolean((inDef && inDef.multiInput) || inSubIdx !== null || Array.isArray(targetBlock.inputs?.[inKey]));
+
             const newWireId = Math.random().toString(36).substring(2, 12);
 
             if (!sourceBlock.outputs) sourceBlock.outputs = {};
@@ -7413,19 +7569,51 @@
             }
 
             if (!targetBlock.inputs) targetBlock.inputs = {};
-            if (inSubIdx !== null || Array.isArray(targetBlock.inputs[inKey])) {
+            if (isTargetMulti) {
                 let arr = targetBlock.inputs[inKey];
                 if (!Array.isArray(arr)) arr = arr ? [arr] : [];
-                const k = inSubIdx === null ? arr.length : inSubIdx;
-                if (k < arr.length && !arr[k]) arr[k] = newWireId;
-                else arr.push(newWireId);
+                else arr = [...arr];
+
+                let k = inSubIdx;
+                if (k === null || k === undefined) {
+                    const emptyIdx = arr.findIndex(x => !x);
+                    k = emptyIdx >= 0 ? emptyIdx : arr.length;
+                }
+
+                const oldWireId = arr[k];
+                if (oldWireId && oldWireId !== newWireId && typeof oldWireId === 'string') {
+                    currentWorkspace.blocks.forEach(b => {
+                        if (!b.outputs) return;
+                        Object.entries(b.outputs).forEach(([oK, oVal]) => {
+                            if (Array.isArray(oVal)) {
+                                b.outputs[oK] = oVal.map(sub => Array.isArray(sub) ? sub.filter(w => w !== oldWireId) : sub).filter(w => w !== oldWireId);
+                            }
+                        });
+                    });
+                }
+
+                while (arr.length <= k) {
+                    arr.push("");
+                }
+                arr[k] = newWireId;
                 targetBlock.inputs[inKey] = arr;
             } else {
+                const oldWireId = targetBlock.inputs[inKey];
+                if (oldWireId && oldWireId !== newWireId && typeof oldWireId === 'string') {
+                    currentWorkspace.blocks.forEach(b => {
+                        if (!b.outputs) return;
+                        Object.entries(b.outputs).forEach(([oK, oVal]) => {
+                            if (Array.isArray(oVal)) {
+                                b.outputs[oK] = oVal.map(sub => Array.isArray(sub) ? sub.filter(w => w !== oldWireId) : sub).filter(w => w !== oldWireId);
+                            }
+                        });
+                    });
+                }
                 targetBlock.inputs[inKey] = newWireId;
             }
 
             cancelConnectingWire();
-            drawWires();
+            renderCanvas();
             updateStats();
             recordHistory('Połączono kablem');
             debouncedSaveToDisk();
