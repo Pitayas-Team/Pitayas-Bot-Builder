@@ -1118,6 +1118,33 @@ ipcMain.handle('pick-directory', async (event, defaultPath) => {
     return res.filePaths[0];
 });
 
+function syncProjectBlocks(targetDir) {
+    if (!targetDir) return;
+    const bDest = path.join(targetDir, 'blocks');
+    if (!fs.existsSync(bDest)) {
+        try { fs.cpSync(BLOCKS_DIR, bDest, { recursive: true }); } catch(e) {}
+        return;
+    }
+    try {
+        const files = fs.readdirSync(BLOCKS_DIR).filter(f => f.endsWith('.js'));
+        files.forEach(f => {
+            const src = path.join(BLOCKS_DIR, f);
+            const dst = path.join(bDest, f);
+            if (!fs.existsSync(dst)) {
+                fs.copyFileSync(src, dst);
+            } else {
+                const sStat = fs.statSync(src);
+                const dStat = fs.statSync(dst);
+                if (sStat.mtimeMs > dStat.mtimeMs) {
+                    fs.copyFileSync(src, dst);
+                }
+            }
+        });
+    } catch(e) {
+        console.error('Błąd synchronizacji bloków projektu:', e);
+    }
+}
+
 ipcMain.handle('open-project-dialog', async () => {
     const res = await dialog.showOpenDialog(mainWindow, {
         title: 'Wybierz folder bota (Discord Bot Builder)',
@@ -1127,11 +1154,8 @@ ipcMain.handle('open-project-dialog', async () => {
     if (res.canceled || !res.filePaths.length) return { canceled: true };
     const targetDir = res.filePaths[0];
 
-    // Jeśli w projekcie brakuje folderu blocks, skopiuj z wzorca
-    const bDest = path.join(targetDir, 'blocks');
-    if (!fs.existsSync(bDest)) {
-        try { fs.cpSync(BLOCKS_DIR, bDest, { recursive: true }); } catch(e) {}
-    }
+    // Synchronizuj bloki z wzorca PBB
+    syncProjectBlocks(targetDir);
 
     // Jeśli brakuje workspaces.json, utwórz pusty []
     const wsPath = path.join(targetDir, 'data', 'workspaces.json');
@@ -1157,6 +1181,7 @@ ipcMain.handle('switch-project', (event, projNameOrPath) => {
     const paths = getProjectPaths(projNameOrPath);
     if (!paths) return { ok: false, error: 'Nie znaleziono projektu: ' + projNameOrPath };
     currentProject = paths.dir;
+    syncProjectBlocks(paths.dir);
 
     const settings = loadSettings();
     settings.recent = [paths.dir, ...(settings.recent || []).filter(r => r !== paths.dir)];
@@ -1542,6 +1567,7 @@ ipcMain.handle('evaluate-block-schema', (event, blockData) => {
 // Odczyt i Zapis workspaces.json dla aktualnego projektu
 ipcMain.handle('load-workspaces', () => {
     if (!currentProject) return [];
+    syncProjectBlocks(currentProject);
     const paths = getProjectPaths(currentProject);
     if (paths && fs.existsSync(paths.workspaces)) {
         try {
@@ -1592,6 +1618,9 @@ ipcMain.handle('check-app-update', async () => {
 
 ipcMain.handle('apply-git-update', async () => {
     const res = await core.updater.apply();
+    if (res.ok && currentProject) {
+        syncProjectBlocks(currentProject);
+    }
     if (res.ok && res.openedBrowser) return { ok: true, output: 'Otwarto stronę z nową wersją w przeglądarce.' };
     return res.ok ? { ok: true, output: 'Zaktualizowano.' } : { ok: false, error: res.error };
 });

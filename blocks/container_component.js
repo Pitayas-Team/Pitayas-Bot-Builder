@@ -119,14 +119,17 @@ module.exports = {
 
         const get = (id) => this.GetInputValue(id, cache) ?? this.GetOptionValue(id, cache);
 
-        const components = this.GetInputValue("components", cache, { fetch: true }).filter((a) => a);
+        const rawComponents = this.GetInputValue("components", cache, { fetch: true });
+        const components = (Array.isArray(rawComponents) ? rawComponents : (rawComponents ? [rawComponents] : [])).filter((a) => a);
         const accent_color = get("accent_color");
         const spoiler = get("spoiler");
 
         const container = new ContainerBuilder().setSpoiler(!!spoiler);
 
         function hexToNumber(hex) {
-            return parseInt(hex.replace("#", ""), 16);
+            if (typeof hex === "number") return hex;
+            if (typeof hex !== "string") return 0;
+            return parseInt(hex.replace("#", ""), 16) || 0;
         }
 
         if (accent_color === "#000000") {
